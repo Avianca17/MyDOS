@@ -103,7 +103,7 @@ void kernel_main(unsigned int magic, unsigned int mbi) {
                 cursor_y++;
                 scroll_screen(&cursor_y);
 
-                print("help clear echo sysinfo uptime shlogo date reboot shutdown", WHITE, 0, cursor_y);
+                print("help clear echo sysinfo uptime shlogo date rbt shtdwn", WHITE, 0, cursor_y);
 
                 cursor_y++;
                 scroll_screen(&cursor_y);
@@ -226,7 +226,18 @@ void kernel_main(unsigned int magic, unsigned int mbi) {
                 cursor_y += 6;
                 scroll_screen(&cursor_y);
             }
-
+            else if (strcmp(cmd, "shtdwn") == 0) {
+                shutdown();
+            }
+            else if (strcmp(cmd, "rbt") == 0) {
+                __asm__ volatile(
+                    "movb $0xFE, %%al\n\t"
+                    "outb %%al, $0x64\n\t"
+                    :
+                    :
+                    : "al"
+                );
+            }
             else if (cmd[0] != '\0') {
                 print("trml: unknown command", RED, 0, cursor_y);
 

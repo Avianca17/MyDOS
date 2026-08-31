@@ -46,9 +46,13 @@ $(BUILD_DIR)/keyboard.o: src/kernel/drivers/keyboard.c src/kernel/drivers/keyboa
 	@mkdir -p $(BUILD_DIR)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
 
-$(KERNEL): $(BUILD_DIR)/boot.o $(BUILD_DIR)/kernel.o $(BUILD_DIR)/vga.o $(BUILD_DIR)/string.o $(BUILD_DIR)/rtc.o $(BUILD_DIR)/hardware.o $(BUILD_DIR)/keyboard.o linker.ld
+$(BUILD_DIR)/shtdwn.o: src/lib/shtdwn.c src/lib/shtdwn.h
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
+
+$(KERNEL): $(BUILD_DIR)/boot.o $(BUILD_DIR)/kernel.o $(BUILD_DIR)/vga.o $(BUILD_DIR)/string.o $(BUILD_DIR)/rtc.o $(BUILD_DIR)/hardware.o $(BUILD_DIR)/keyboard.o $(BUILD_DIR)/shtdwn.o linker.ld
 	@mkdir -p $(ISO_DIR)/boot
-	$(LD) -m elf_i386 -T linker.ld -o $@ $(BUILD_DIR)/boot.o $(BUILD_DIR)/kernel.o $(BUILD_DIR)/vga.o $(BUILD_DIR)/string.o $(BUILD_DIR)/rtc.o $(BUILD_DIR)/hardware.o $(BUILD_DIR)/keyboard.o
+	$(LD) -m elf_i386 -T linker.ld -o $@ $(BUILD_DIR)/boot.o $(BUILD_DIR)/kernel.o $(BUILD_DIR)/vga.o $(BUILD_DIR)/string.o $(BUILD_DIR)/rtc.o $(BUILD_DIR)/hardware.o $(BUILD_DIR)/keyboard.o $(BUILD_DIR)/shtdwn.o
 
 $(ISO_DIR)/boot/grub/grub.cfg: iso/boot/grub/grub.cfg
 	@mkdir -p $(ISO_DIR)/boot/grub
