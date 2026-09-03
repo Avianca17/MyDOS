@@ -33,3 +33,4 @@ void kernel_main(unsigned int magic, unsigned int mbi);
 #include "drivers/rtc.h"
 #include "lib/hardware.h"
 #include "lib/shtdwn.h"
+#include "helper/helpers.h"

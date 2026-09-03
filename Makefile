@@ -22,7 +22,7 @@ $(BUILD_DIR)/boot.o: src/boot.asm
 	@mkdir -p $(BUILD_DIR)
 	$(AS) -f elf32 $< -o $@
 
-$(BUILD_DIR)/kernel.o: src/kernel/kernel.c src/kernel/kernel.h src/kernel/drivers/vga.h src/lib/string.h src/kernel/drivers/rtc.h src/lib/hardware.h src/kernel/drivers/keyboard.h
+$(BUILD_DIR)/kernel.o: src/kernel/kernel.c src/kernel/kernel.h src/kernel/drivers/vga.h src/lib/string.h src/kernel/drivers/rtc.h src/lib/hardware.h src/kernel/drivers/keyboard.h src/kernel/helper/helpers.h
 	@mkdir -p $(BUILD_DIR)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
 
@@ -50,9 +50,13 @@ $(BUILD_DIR)/shtdwn.o: src/lib/shtdwn.c src/lib/shtdwn.h
 	@mkdir -p $(BUILD_DIR)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
 
-$(KERNEL): $(BUILD_DIR)/boot.o $(BUILD_DIR)/kernel.o $(BUILD_DIR)/vga.o $(BUILD_DIR)/string.o $(BUILD_DIR)/rtc.o $(BUILD_DIR)/hardware.o $(BUILD_DIR)/keyboard.o $(BUILD_DIR)/shtdwn.o linker.ld
+$(BUILD_DIR)/helper.o: src/kernel/helper/helpers.c src/kernel/helper/helpers.h
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
+
+$(KERNEL): $(BUILD_DIR)/boot.o $(BUILD_DIR)/kernel.o $(BUILD_DIR)/vga.o $(BUILD_DIR)/string.o $(BUILD_DIR)/rtc.o $(BUILD_DIR)/hardware.o $(BUILD_DIR)/keyboard.o $(BUILD_DIR)/shtdwn.o $(BUILD_DIR)/helper.o linker.ld
 	@mkdir -p $(ISO_DIR)/boot
-	$(LD) -m elf_i386 -T linker.ld -o $@ $(BUILD_DIR)/boot.o $(BUILD_DIR)/kernel.o $(BUILD_DIR)/vga.o $(BUILD_DIR)/string.o $(BUILD_DIR)/rtc.o $(BUILD_DIR)/hardware.o $(BUILD_DIR)/keyboard.o $(BUILD_DIR)/shtdwn.o
+	$(LD) -m elf_i386 -T linker.ld -o $@ $(BUILD_DIR)/boot.o $(BUILD_DIR)/kernel.o $(BUILD_DIR)/vga.o $(BUILD_DIR)/string.o $(BUILD_DIR)/rtc.o $(BUILD_DIR)/hardware.o $(BUILD_DIR)/keyboard.o $(BUILD_DIR)/shtdwn.o $(BUILD_DIR)/helper.o
 
 $(ISO_DIR)/boot/grub/grub.cfg: iso/boot/grub/grub.cfg
 	@mkdir -p $(ISO_DIR)/boot/grub
