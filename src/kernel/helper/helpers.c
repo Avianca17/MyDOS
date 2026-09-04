@@ -59,5 +59,5 @@ void append_padded(char* out, unsigned int value, int width) {
     if (strcmp(name, "magenta") == 0) return MAGENTA;
     if (strcmp(name, "white") == 0) return WHITE;
   
-    return WHITE; // Default fallback if they typed an unknown color!
+    return 0xFF;
 }

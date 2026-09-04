@@ -7,7 +7,7 @@
 #define VGA_CTRL 0x3D4
 #define VGA_DATA 0x3D5
 
-#define PROMPT_LENGTH 13
+#define PROMPT_LENGTH 12 // Changed this so that the extra space on the prompt disappeared. 
 
 #define BLACK 0x00
 #define BLUE 0x01
