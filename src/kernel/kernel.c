@@ -78,8 +78,11 @@ void kernel_main(unsigned int magic, unsigned int mbi) {
                 }
                 else if (strcmp(args, "echo") == 0) {
                     print("Usage: echo [-c <color>|--color <color>] <text>", WHITE, 0, cursor_y); scrl(&cursor_y);
-                    print("Colors: red, green, blue, cyan, yellow, magenta, white.", LIGHT_GREY, 0, cursor_y); scrl(&cursor_y);
-                    print("Print text to the screen in the specified color. If no color is specified, white is used.", LIGHT_GREY, 0, cursor_y); scrl(&cursor_y);
+                    print("Colors: blue, green, cyan, red, magenta, brown, light_grey, ", LIGHT_GREY, 0, cursor_y); scrl(&cursor_y);
+                    print("dark_grey, light_blue, light_green, light_cyan, light_red, light_magenta,", LIGHT_GREY, 0, cursor_y); scrl(&cursor_y);
+                    print("yellow, white", LIGHT_GREY, 0, cursor_y); scrl(&cursor_y);
+                    print("Print text in a specified color. If no color is specified, white is used.", LIGHT_GREY, 0, cursor_y);
+                    scrl(&cursor_y);
                 }
                 else if (strcmp(args, "uptime") == 0) {
                     print("Usage: uptime [-p|--pretty] [-s|--seconds]", WHITE, 0, cursor_y); scrl(&cursor_y);

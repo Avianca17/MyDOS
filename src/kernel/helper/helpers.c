@@ -50,14 +50,23 @@ void append_padded(char* out, unsigned int value, int width) {
     out[len] = '\0';
 }
 
- unsigned char parse_color(const char* name) {
+unsigned char parse_color(const char* name) {
+    if (strcmp(name, "black") == 0) return BLACK;
     if (strcmp(name, "red") == 0) return RED;
     if (strcmp(name, "green") == 0) return GREEN;
     if (strcmp(name, "blue") == 0) return BLUE;
     if (strcmp(name, "cyan") == 0) return CYAN;
-    if (strcmp(name, "yellow") == 0) return YELLOW;
     if (strcmp(name, "magenta") == 0) return MAGENTA;
+    if (strcmp(name, "brown") == 0) return BROWN;
+    if (strcmp(name, "light_grey") == 0) return LIGHT_GREY;
+    if (strcmp(name, "dark_grey") == 0) return DARK_GREY;
+    if (strcmp(name, "light_blue") == 0) return LIGHT_BLUE;
+    if (strcmp(name, "light_green") == 0) return LIGHT_GREEN;
+    if (strcmp(name, "light_cyan") == 0) return LIGHT_CYAN;
+    if (strcmp(name, "light_red") == 0) return LIGHT_RED;
+    if (strcmp(name, "light_magenta") == 0) return LIGHT_MAGENTA;
+    if (strcmp(name, "yellow") == 0) return YELLOW;
     if (strcmp(name, "white") == 0) return WHITE;
-  
+
     return 0xFF;
 }
