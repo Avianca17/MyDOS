@@ -5,6 +5,7 @@ void move_cursor(int x, int y);
 void print_logo_at(int x, int y);
 void print_logo(void);
 void print(const char* msg, unsigned char color, int x, int y);
+int change_theme(const char* name);
 void clear_screen(void);
 void scroll_screen(int* cursor_y);
 

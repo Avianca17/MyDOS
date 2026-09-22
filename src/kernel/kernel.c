@@ -1,24 +1,24 @@
 #include "kernel.h"
 #include "drivers/keyboard.h"
 
-#define KERNEL_VERSION "v0.2 beta"
-#define SHELL_VERSION "v0.1.1 beta"
+#define KERNEL_VERSION "v0.2.1 beta"
+#define SHELL_VERSION "v0.1.2 beta"
 
 static unsigned int uptime = 0;
 
 void scrl(int* cursor_y);
 
-void kernel_main(unsigned int magic, unsigned int mbi) {
+void KernelEntryPoint(unsigned int magic, unsigned int mbi) {
     (void)magic;
 
     clear_screen();
     print_logo();
 
-    int cursor_y = 6;
+    int cursor_y = 13;
     int cursor_x = PROMPT_LENGTH;
 
     print("root", RED, 0, cursor_y);
-    print("@", WHITE, 4, cursor_y);
+    print("@", WHITE, 4, cursor_y); 
     print("MyDOS", GREEN, 5, cursor_y);
     print("# ", WHITE, 10, cursor_y);
     move_cursor(cursor_x, cursor_y);
@@ -33,7 +33,13 @@ void kernel_main(unsigned int magic, unsigned int mbi) {
 
     uptime = rtcts(hr, min, sec);
 
-    while (1) {
+    print("Thank you for trying out MyDOS!", WHITE, 0, 7);
+    print("Keep in mind that it is still in beta, so there will not be many features", WHITE, 0, 8);
+    print("and there might be bugs. Check out my GitHub repository at: ", WHITE, 0, 9);
+    print("---https://github.com/Avianca17/MyDOS---", GREEN, 0, 10);
+    print("Type 'help' to see available commands.", WHITE, 0, 11);
+    while (1)
+    {
         char c = keyboard_getchar();
 
         if (c == 0) continue;
@@ -66,7 +72,7 @@ void kernel_main(unsigned int magic, unsigned int mbi) {
             if (strcmp(cmd, "help") == 0) {
                 if (args[0] == '\0') {
                     print("Available commands:", WHITE, 0, cursor_y); scrl(&cursor_y);
-                    print("help clear echo sysinfo uptime shlogo date rbt shtdwn", WHITE, 0, cursor_y); scrl(&cursor_y);
+                    print("help clear echo change-theme sysinfo uptime shlogo date rbt shtdwn", WHITE, 0, cursor_y); scrl(&cursor_y);
                     print("Run 'help <command>' for flags and details.", LIGHT_GREY, 0, cursor_y); scrl(&cursor_y);
                 }
                 else if (strcmp(args, "date") == 0) {
@@ -116,6 +122,12 @@ void kernel_main(unsigned int magic, unsigned int mbi) {
                     print("Usage: help [command]", WHITE, 0, cursor_y); scrl(&cursor_y);
                     print("Show help for all commands or a specific command.", LIGHT_GREY, 0, cursor_y); scrl(&cursor_y);
                 }
+                else if (strcmp(args, "change-theme") == 0) {
+                    print("Usage: change-theme <default|green|ocean|sunset>", WHITE, 0, cursor_y); scrl(&cursor_y);
+                    print("Change the color theme.", LIGHT_GREY, 0, cursor_y); scrl(&cursor_y);
+                    print("Please note that this feature is still in beta, so there might be", LIGHT_GREY, 0, cursor_y); scrl(&cursor_y);
+                    print("bugs or inconsistencies.", LIGHT_GREY, 0, cursor_y); scrl(&cursor_y);
+                }
                 else {
                     print("trml: help: unknown command, try again", RED, 0, cursor_y); scrl(&cursor_y);
                 }
@@ -126,6 +138,16 @@ void kernel_main(unsigned int magic, unsigned int mbi) {
                 //print_logo();
                 cursor_y = 0; 
                 if (strcmp(args, "-dl") == 0 || strcmp(args, "--draw-logo") == 0) { print_logo(); cursor_y = 7; }
+            }
+            else if (strcmp(cmd, "change-theme") == 0) {
+                if (args[0] == '\0' || change_theme(args) == 0) {
+                    print("Usage: change-theme <default|green|ocean>", RED, 0, cursor_y);
+                    scrl(&cursor_y);
+                } else {
+                    clear_screen();
+                    print_logo();
+                    cursor_y = 7;
+                }
             }
             else if (strcmp(cmd, "echo") == 0) {
                 if (args[0] == '\0') { print("trml: echo requires text", RED, 0, cursor_y); scrl(&cursor_y); }

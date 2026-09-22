@@ -26,7 +26,7 @@
 #define YELLOW 0x0E
 #define WHITE 0x0F
 
-void kernel_main(unsigned int magic, unsigned int mbi);
+void KernelEntryPoint(unsigned int magic, unsigned int mbi);
 
 #include "drivers/vga.h"
 #include "lib/string.h"

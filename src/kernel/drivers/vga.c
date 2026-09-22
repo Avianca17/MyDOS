@@ -1,8 +1,76 @@
 #include "kernel.h"
 #include "vga.h"
 
+static unsigned char theme_text = WHITE;
+static unsigned char theme_muted = LIGHT_GREY;
+static unsigned char theme_error = RED;
+static unsigned char theme_prompt = GREEN;
+static unsigned char theme_title = BLUE;
+static unsigned char theme_background = BLACK;
+
+static unsigned char theme_color(unsigned char color) {
+    switch (color) {
+        case WHITE: return theme_text;
+        case LIGHT_GREY: return theme_muted;
+        case RED: return theme_error;
+        case GREEN: return theme_prompt;
+        case BLUE: return theme_title;
+        case BLACK: return theme_background;
+        default:
+            return color;
+        }
+}
+
+static unsigned char theme_attribute(unsigned char color) {
+    return theme_color(color) | (theme_background << 4);
+}
+
+int change_theme(const char* name) {
+    if (strcmp(name, "default") == 0) {
+        theme_text = WHITE;
+        theme_muted = LIGHT_GREY;
+        theme_error = RED;
+        theme_prompt = GREEN;
+        theme_title = BLUE;
+        theme_background = BLACK;
+        return 1;
+    }
+
+    if (strcmp(name, "green") == 0) {
+        theme_text = LIGHT_GREEN;
+        theme_muted = GREEN;
+        theme_error = GREEN;
+        theme_prompt = LIGHT_GREEN;
+        theme_title = WHITE;
+        theme_background = BLACK;
+        return 1;
+    }
+
+    if (strcmp(name, "ocean") == 0) {
+        theme_text = WHITE;
+        theme_muted = LIGHT_BLUE;
+        theme_error = LIGHT_RED;
+        theme_prompt = LIGHT_CYAN;
+        theme_title = LIGHT_BLUE;
+        theme_background = BLACK;
+        return 1;
+    }
+    if (strcmp(name, "sunset") == 0) {
+        theme_text = YELLOW;
+        theme_muted = DARK_GREY;
+        theme_error = LIGHT_RED;
+        theme_prompt = LIGHT_MAGENTA;
+        theme_title = RED;
+        theme_background = BROWN;
+        return 1;
+    }
+
+    return 0;
+}
+
 static void draw_logo_pattern(const char* const pattern[], int width, int height, unsigned char color, int x, int y) {
     volatile unsigned short* vga_buffer = (volatile unsigned short*)VGA_ADDRESS;
+    color = theme_attribute(color);
 
     for (int row = 0; row < height; row++) {
         for (int column = 0; column < width; column++) {
@@ -107,6 +175,7 @@ void print_logo(void) {
 
 void print(const char* msg, unsigned char color, int x, int y) {
     volatile unsigned short* vga_buffer = (volatile unsigned short*)VGA_ADDRESS;
+    color = theme_attribute(color);
 
     int offset = y * VGA_WIDTH + x;
 
@@ -121,7 +190,7 @@ void print(const char* msg, unsigned char color, int x, int y) {
 void clear_screen(void) {
     volatile unsigned short* vga_buffer = (volatile unsigned short*)VGA_ADDRESS;
 
-    unsigned short blank = (unsigned short)' ' | ((unsigned short)LIGHT_GREY << 8);
+    unsigned short blank = (unsigned short)' ' | ((unsigned short)theme_attribute(LIGHT_GREY) << 8);
 
     for (int index = 0; index < VGA_WIDTH * VGA_HEIGHT; index++) {
         vga_buffer[index] = blank;
@@ -139,7 +208,7 @@ void scroll_screen(int* cursor_y) {
         }
     }
 
-    unsigned short blank = (unsigned short)' ' | ((unsigned short)LIGHT_GREY << 8);
+    unsigned short blank = (unsigned short)' ' | ((unsigned short)theme_attribute(LIGHT_GREY) << 8);
 
     for (int x = 0; x < VGA_WIDTH; x++) {
         vga_buffer[(VGA_HEIGHT - 1) * VGA_WIDTH + x] = blank;

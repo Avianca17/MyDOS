@@ -1,7 +1,7 @@
 bits 32
 
 global _start
-extern kernel_main
+extern KernelEntryPoint
 
 section .text
 	align 4
@@ -16,7 +16,7 @@ section .text
 
 		push ebx
 		push eax
-		call kernel_main
+		call KernelEntryPoint
 
 		cli
 	.halt_after_kernel:
@@ -24,7 +24,7 @@ section .text
 		jmp .halt_after_kernel
 
 section .rodata
-	boot_message db 'MyDOS bootloader started', 0
+	boot_message db 'MyDOS bootloader started', 0 ; Please ignore this as it won't appear anywhere and I don't want to remove it.
 
 section .bss
 	align 16
