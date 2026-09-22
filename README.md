@@ -17,7 +17,39 @@ shtdwn - Stops processes and halts the CPU
 
 Supported echo colors: blue, green, cyan, red, magenta, brown, light_grey, dark_grey, light_blue, light_green, light_cyan, light_red, light_magenta, yellow, white.
 
-Project Structure
+Project Structure:
+MyDOS/
+├── iso/
+│   └── boot/
+│       └── grub/
+│           └── grub.cfg
+├── linker.ld
+├── Makefile
+├── MyDOS.iso <-- THE ISO FILE ITSELF
+├── README.md
+└── src/
+    ├── boot.asm
+    ├── kernel/
+    │   ├── drivers/
+    │   │   ├── keyboard.c
+    │   │   ├── keyboard.h
+    │   │   ├── rtc.c
+    │   │   ├── rtc.h
+    │   │   ├── vga.c
+    │   │   └── vga.h
+    │   ├── helper/
+    │   │   ├── helpers.c
+    │   │   └── helpers.h
+    │   ├── kernel.c
+    │   └── kernel.h
+    └── lib/
+        ├── hardware.c
+        ├── hardware.h
+        ├── shtdwn.c
+        ├── shtdwn.h
+        ├── string.c
+        └── string.h
+9 directories, 22 files
 
 Prerequisites: gcc, nasm, ld, grub-mkrescue, xorriso, qemu-system-i386
 
