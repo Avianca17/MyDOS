@@ -36,7 +36,7 @@ int change_theme(const char* name) {
         return 1;
     }
 
-    if (strcmp(name, "green") == 0) {
+    if (strcmp(name, "matrix") == 0) {
         theme_text = LIGHT_GREEN;
         theme_muted = GREEN;
         theme_error = GREEN;
@@ -182,7 +182,7 @@ void print(const char* msg, unsigned char color, int x, int y) {
     for (int i = 0; msg[i] != '\0'; i++) {
         if (offset >= VGA_WIDTH * VGA_HEIGHT) break;
 
-        vga_buffer[offset] = (unsigned short)msg[i] | ((unsigned short)color << 8);
+        vga_buffer[offset] = (unsigned short)(unsigned char)msg[i] | ((unsigned short)color << 8);
         offset++;
     }
 }

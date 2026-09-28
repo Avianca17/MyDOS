@@ -1,5 +1,6 @@
 #include "kernel.h"
 #include "hardware.h"
+#include <stdint.h>
 
 void cpuid_vendor(char out[13]) {
     unsigned int eax;
@@ -68,4 +69,31 @@ unsigned int get_total_ram_mb(unsigned int mbi) {
     }
 
     return total;
+}
+
+
+FRESULT get_storage_info(unsigned int *used_mb, unsigned int *total_mb)
+{
+    DWORD free_clusters;
+    FATFS *volume;
+
+    if (used_mb == 0 || total_mb == 0)
+    {
+        return FR_INVALID_PARAMETER;
+    }
+
+    FRESULT result = f_getfree("", &free_clusters, &volume);
+    if (result != FR_OK)
+    {
+        return result;
+    }
+
+    uint64_t cluster_bytes = (uint64_t)volume->csize * FF_MIN_SS;
+    uint64_t total_bytes = (uint64_t)(volume->n_fatent - 2) * cluster_bytes;
+    uint64_t free_bytes = (uint64_t)free_clusters * cluster_bytes;
+
+    *total_mb = (unsigned int)(total_bytes / (1024u * 1024u));
+    *used_mb = (unsigned int)((total_bytes - free_bytes) / (1024u * 1024u));
+
+    return FR_OK;
 }

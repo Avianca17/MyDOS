@@ -7,7 +7,7 @@
 #define VGA_CTRL 0x3D4
 #define VGA_DATA 0x3D5
 
-#define PROMPT_LENGTH 12 // Changed this so that the extra space on the prompt disappeared. 
+#define PROMPT_LENGTH 15
 
 #define BLACK 0x00
 #define BLUE 0x01
@@ -27,6 +27,7 @@
 #define WHITE 0x0F
 
 void KernelEntryPoint(unsigned int magic, unsigned int mbi);
+void scrl(int* cursor_y);
 
 #include "drivers/vga.h"
 #include "lib/string.h"
@@ -34,3 +35,4 @@ void KernelEntryPoint(unsigned int magic, unsigned int mbi);
 #include "lib/hardware.h"
 #include "lib/shtdwn.h"
 #include "helper/helpers.h"
+#include "helper/fshelpers/fshelpers.h"

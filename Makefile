@@ -10,9 +10,10 @@ GRUB_MKRESCUE ?= grub-mkrescue
 QEMU ?= qemu-system-i386
 
 CFLAGS := -m32 -ffreestanding -fno-pie -fno-stack-protector -Wall -Wextra
-CPPFLAGS := -I src -I src/kernel -I src/lib
+CPPFLAGS := -I src -I src/kernel -I src/lib -I src/fs/fatfs/source
 
-C_SOURCES := $(shell find src -type f -name '*.c' | sort)
+C_SOURCES := $(shell find src -type f -name '*.c' ! -path 'src/fs/littlefs/*' ! -path 'src/fs/fatfs/*' | sort) \
+     src/fs/fatfs/source/ff.c src/fs/fatfs/source/diskio.c src/fs/fatfs/source/ffunicode.c
 ASM_SOURCES := $(shell find src -type f -name '*.asm' | sort)
 LINKER_SCRIPT := $(firstword $(shell find . -type f -name '*.ld' | sort))
 

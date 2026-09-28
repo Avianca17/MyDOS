@@ -7,7 +7,7 @@ Available commands:
 help [command] - Show available commands or help
 clear [-dl|--draw-logo] - Clear screen and optional logo
 echo [-c <color>|--color <color>] <text> - Print colored text
-change-theme <default|green|ocean|sunset> - Change shell theme
+change-theme <default|matrix|ocean|sunset> - Change shell theme
 date [-t|--time] [-d|--date] [-12|--12h] - Show time or date
 uptime [-p|--pretty] [-s|--seconds] - Show system uptime
 sysinfo - Show kernel and terminal version, CPU, and RAM

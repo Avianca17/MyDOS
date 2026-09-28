@@ -29,6 +29,37 @@ int strncmp(const char* s1, const char* s2, int n) {
     return *(unsigned char*)s1 - *(unsigned char*)s2;
 }
 
+void* memset(void* destination, int value, unsigned int count) {
+    unsigned char* bytes = (unsigned char*)destination;
+    while (count-- != 0u) *bytes++ = (unsigned char)value;
+    return destination;
+}
+
+void* memcpy(void* destination, const void* source, unsigned int count) {
+    unsigned char* output = (unsigned char*)destination;
+    const unsigned char* input = (const unsigned char*)source;
+    while (count-- != 0u) *output++ = *input++;
+    return destination;
+}
+
+int memcmp(const void* first, const void* second, unsigned int count) {
+    const unsigned char* left = (const unsigned char*)first;
+    const unsigned char* right = (const unsigned char*)second;
+    while (count-- != 0u) {
+        if (*left != *right) return (int)*left - (int)*right;
+        left++; right++;
+    }
+    return 0;
+}
+
+char* strchr(const char* string, int character) {
+    while (*string != '\0') {
+        if (*string == (char)character) return (char*)string;
+        string++;
+    }
+    return character == '\0' ? (char*)string : 0;
+}
+
 void itoanum(unsigned int value, char out[32]) {
     char tmp[32];
     int i = 0;
