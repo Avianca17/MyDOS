@@ -1,57 +1,67 @@
-MyDOS is a simple 32-bit x86 hobby operating system written in C and Assembly. It boots with GRUB and runs in QEMU.
+MyDOS is a simple 32-bit x86 hobby operating system written in C and Assembly. It boots with GRUB, supports FAT32 using FatFs, and runs in QEMU.
 
-Current version: v0.2.1 beta
-Current shell version: trml v0.1.2 beta
+Current version: v0.3
+Current shell version: trml v0.2
 
 Available commands:
-help [command] - Show available commands or help
-clear [-dl|--draw-logo] - Clear screen and optional logo
-echo [-c <color>|--color <color>] <text> - Print colored text
-change-theme <default|matrix|ocean|sunset> - Change shell theme
-date [-t|--time] [-d|--date] [-12|--12h] - Show time or date
-uptime [-p|--pretty] [-s|--seconds] - Show system uptime
-sysinfo - Show kernel and terminal version, CPU, and RAM
-shlogo - Display MyDOS logo
-rbt - Reboot computer
-shtdwn - Stops processes and halts the CPU
 
-Supported echo colors: blue, green, cyan, red, magenta, brown, light_grey, dark_grey, light_blue, light_green, light_cyan, light_red, light_magenta, yellow, white.
+Shell:
+- help [command] - Show available commands or help for a specific command
+- clear [-dl|--draw-logo] - Clear screen and optional logo
+- echo [-c <color>|--color <color>] <text> - Print colored text
+- change-theme <default|matrix|ocean|sunset> - Change shell theme
+- date [-t|--time] [-d|--date] [-12|--12h] - Show time or date
+- uptime [-p|--pretty] [-s|--seconds] - Show system uptime
+- sysinfo - Show kernel and shell version, CPU vendor, and RAM
+- shlogo - Display MyDOS logo
+
+Filesystem (FAT32):
+- ls - List files and folders in current directory
+- lsdrv - List available storage drives
+- mkfile <filename> - Create a new file
+- mkdir <dirname> - Create a new directory
+- rm [-r] <path> - Delete a file (or directory with -r)
+
+System:
+- rbt - Reboot computer
+- shtdwn - Stop processes and halt the CPU
+
+Supported echo colors:
+blue, green, cyan, red, magenta, brown, light_grey, dark_grey, light_blue, light_green, light_cyan, light_red, light_magenta, yellow, white.
 
 Project Structure:
-MyDOS/
+```MyDOS/
 ├── iso/
-│   └── boot/
-│       └── grub/
-│           └── grub.cfg
+│   └── boot/
+│       └── grub/
+│           └── grub.cfg
 ├── linker.ld
 ├── Makefile
-├── MyDOS.iso <-- THE ISO FILE ITSELF
 ├── README.md
 └── src/
     ├── boot.asm
+    ├── fs/
+    │   └── fatfs/             <-- FatFs library and disk drivers
     ├── kernel/
-    │   ├── drivers/
-    │   │   ├── keyboard.c
-    │   │   ├── keyboard.h
-    │   │   ├── rtc.c
-    │   │   ├── rtc.h
-    │   │   ├── vga.c
-    │   │   └── vga.h
-    │   ├── helper/
-    │   │   ├── helpers.c
-    │   │   └── helpers.h
-    │   ├── kernel.c
-    │   └── kernel.h
+    │   ├── drivers/
+    │   │   ├── keyboard.c/h
+    │   │   ├── rtc.c/h
+    │   │   └── vga.c/h
+    │   ├── helper/
+    │   │   ├── fshelpers/     <-- FAT32 helper functions
+    │   │   │   ├── fshelpers.c
+    │   │   │   └── fshelpers.h
+    │   │   ├── helpers.c
+    │   │   └── helpers.h
+    │   ├── kernel.c
+    │   └── kernel.h
     └── lib/
-        ├── hardware.c
-        ├── hardware.h
-        ├── shtdwn.c
-        ├── shtdwn.h
-        ├── string.c
-        └── string.h
-9 directories, 22 files
+        ├── hardware.c/h
+        ├── shtdwn.c/h
+        └── string.c/h``
 
-Prerequisites: gcc, nasm, ld, grub-mkrescue, xorriso, qemu-system-i386
+Prerequisites:
+gcc, nasm, ld, grub-mkrescue, xorriso, qemu-system-i386
 
 Build ISO:
 make
