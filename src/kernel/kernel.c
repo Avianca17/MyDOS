@@ -8,6 +8,21 @@ static unsigned int uptime = 0;
 
 void scrl(int *cursor_y);
 
+static const char *format_error_message(FRESULT result) {
+    switch (result) {
+        case FR_DISK_ERR:
+            return "FAT32 format failed: disk I/O error.";
+        case FR_NOT_READY:
+            return "FAT32 format failed: disk not ready.";
+        case FR_WRITE_PROTECTED:
+            return "FAT32 format failed: disk is write-protected.";
+        case FR_MKFS_ABORTED:
+            return "FAT32 format failed: disk could not be formatted.";
+        default:
+            return "FAT32 format failed: filesystem error.";
+    }
+}
+
 static void help_row(const char *text, unsigned char color, int *cursor_y) {
     print(text, color, 2, *cursor_y);
     scrl(cursor_y);
@@ -25,6 +40,14 @@ static void help_command_header(const char *command, int *cursor_y) {
 
 void KernelEntryPoint(unsigned int magic, unsigned int mbi) {
     (void)magic;
+    (void)mbi;
+
+    // Direct boot-time test for kernel panic (remove or comment out when done testing):
+    // panic("Fatal exception: system integrity verification failed");
+
+    gdt_init();
+    idt_init();
+    keyboard_load_layout("de");
 
     clear_screen();
     print_logo();
@@ -40,16 +63,21 @@ void KernelEntryPoint(unsigned int magic, unsigned int mbi) {
         char answer;
         do {
             answer = keyboard_getchar();
-        } while (answer != 'y' && answer != 'Y' &&
-                 answer != 'n' && answer != 'N');
+        } while (answer != 'y' && answer != 'Y' && answer != 'n' && answer != 'N');
 
         if (answer == 'y' || answer == 'Y') {
             fs_result = fs_format();
-        }
-        else {
+            if (fs_result != FR_OK) {
+                print(format_error_message(fs_result), RED, 0, cursor_y);
+                scrl(&cursor_y);
+            }
+        } else {
             print("Disk left unchanged.", WHITE, 0, cursor_y);
             scrl(&cursor_y);
         }
+    } else if (fs_result == FR_NOT_READY) {
+        print("No usable disk detected.", RED, 0, cursor_y);
+        scrl(&cursor_y);
     } else if (fs_result != FR_OK) {
         print("MyDOS couldn't access the disk.", RED, 0, cursor_y);
         scrl(&cursor_y);
@@ -60,13 +88,14 @@ void KernelEntryPoint(unsigned int magic, unsigned int mbi) {
     print("[", RED, 5, cursor_y);
     print("root", LIGHT_RED, 6, cursor_y);
     print("]", RED, 10, cursor_y);
-    print(":~", WHITE, 11, cursor_y);
-    print("#", RED, 13, cursor_y);
+    print("/", LIGHT_RED, 11, cursor_y);
+    print(":~#", WHITE, 12, cursor_y);
     move_cursor(cursor_x, cursor_y);
-    // MyDOS[root]:~#
+    // MyDOS[root]:~/
 
     char cmd[64];
     int cmd_len = 0;
+    int a = 12;
 
     unsigned char sec = bcdtb(rtc_read(0x00));
     unsigned char min = bcdtb(rtc_read(0x02));
@@ -122,18 +151,21 @@ void KernelEntryPoint(unsigned int magic, unsigned int mbi) {
                     help_row("| Want to know what a command does? Just type help <cmd>!                  |", WHITE, &cursor_y);
                     help_row("|                                                                          |", WHITE, &cursor_y);
                     help_row("| [ SHELL ]                                                                |", YELLOW, &cursor_y);
-                    help_row("|   help            clear           echo            change-theme           |", LIGHT_GREY, &cursor_y);
-                    help_row("|   date            uptime          sysinfo         shlogo                 |", LIGHT_GREY, &cursor_y);
+                    help_row("|   help            clear           echo           change-theme            |", LIGHT_GREY, &cursor_y);
+                    help_row("|   loadkeys        date           uptime         sysinfo                  |", LIGHT_GREY, &cursor_y);
+                    help_row("|   shlogo          beep                                                   |", LIGHT_GREY, &cursor_y);
                     help_row("|                                                                          |", WHITE, &cursor_y);
-                    help_row("| [ SYSTEM ]                                                               |", LIGHT_CYAN, &cursor_y);
-                    help_row("|   rbt             shtdwn                                                 |", LIGHT_GREY, &cursor_y);
+                    help_row("| [ SYSTEM AND DEBUGGING ]                                                 |", LIGHT_CYAN, &cursor_y);
+                    help_row("|   rbt             shtdwn           fault                                 |", LIGHT_GREY, &cursor_y);
                     help_row("|                                                                          |", WHITE, &cursor_y);
                     help_row("| [ FILESYSTEM ]                                                           |", LIGHT_GREEN, &cursor_y);
-                    help_row("|   mkdir           mkfile          ls              lsdrv                  |", LIGHT_GREY, &cursor_y);
-                    help_row("|   rm                                                                     |", LIGHT_GREY, &cursor_y);
+                    help_row("|   mkdir           mkfile          ls             lsdrv                   |", LIGHT_GREY, &cursor_y);
+                    help_row("|   rm              cd              myeditor       pwd                     |", LIGHT_GREY, &cursor_y);
+                    help_row("|   cat                                                                    |", LIGHT_GREY, &cursor_y);
                     help_row("|                                                                          |", WHITE, &cursor_y);
                     help_row("| TIP: Try typing 'help echo'                                              |", YELLOW, &cursor_y);
                     help_row("+--------------------------------------------------------------------------+", BLUE, &cursor_y);
+
                 } else if (strcmp(args, "date") == 0) {
                     print("Usage: date [-t|--time] [-d|--date] [-12|--12h]", WHITE, 0, cursor_y);
                     scrl(&cursor_y);
@@ -143,99 +175,158 @@ void KernelEntryPoint(unsigned int magic, unsigned int mbi) {
                     scrl(&cursor_y);
                     print("The flag '-d' or '--date' displays only the date.", LIGHT_GREY, 0, cursor_y);
                     scrl(&cursor_y);
-                    print("The flag '-12' or '--12h' displays the time in 12-hour AM/PM format.", LIGHT_GREY, 0, cursor_y);
-                    scrl(&cursor_y);
+                    print("The flag '-12' or '--12h' displays the time in "
+                          "12-hour AM/PM format.",
+                          LIGHT_GREY, 0, cursor_y);
+
                 } else if (strcmp(args, "echo") == 0) {
                     print("Usage: echo [-c <color>|--color <color>] <text>", WHITE, 0, cursor_y);
                     scrl(&cursor_y);
-                    print("Colors: blue, green, cyan, red, magenta, brown, light_grey, ", LIGHT_GREY, 0, cursor_y);
+                    print("Colors: blue, green, cyan, red, magenta, brown, "
+                          "light_grey, ",
+                          LIGHT_GREY, 0, cursor_y);
                     scrl(&cursor_y);
-                    print("dark_grey, light_blue, light_green, light_cyan, light_red, light_magenta,", LIGHT_GREY, 0, cursor_y);
+                    print("dark_grey, light_blue, light_green, light_cyan, "
+                          "light_red, light_magenta,",
+                          LIGHT_GREY, 0, cursor_y);
                     scrl(&cursor_y);
                     print("yellow, white", LIGHT_GREY, 0, cursor_y);
                     scrl(&cursor_y);
-                    print("Print text in a specified color. If no color is specified, white is used.", LIGHT_GREY, 0, cursor_y);
-                    scrl(&cursor_y);
+                    print("Print text in a specified color. If no color is "
+                          "specified, white is used.",
+                          LIGHT_GREY, 0, cursor_y);
+
                 } else if (strcmp(args, "uptime") == 0) {
                     print("Usage: uptime [-p|--pretty] [-s|--seconds]", WHITE, 0, cursor_y);
                     scrl(&cursor_y);
                     print("Shows elapsed time since boot.", LIGHT_GREY, 0, cursor_y);
                     scrl(&cursor_y);
-                    print("The flag '-p' or '--pretty' shows the elapsed time in a more human-readable format.", LIGHT_GREY, 0, cursor_y);
+                    print("The flag '-p' or '--pretty' shows the elapsed time "
+                          "in a more human-readable format.",
+                          LIGHT_GREY, 0, cursor_y);
                     scrl(&cursor_y);
-                    print("The flag '-s' or '--seconds' shows the elapsed time in seconds.", LIGHT_GREY, 0, cursor_y);
-                    scrl(&cursor_y);
+                    print("The flag '-s' or '--seconds' shows the elapsed time "
+                          "in seconds.",
+                          LIGHT_GREY, 0, cursor_y);
+
                 } else if (strcmp(args, "sysinfo") == 0) {
                     print("Usage: sysinfo", WHITE, 0, cursor_y);
                     scrl(&cursor_y);
                     print("Display CPU vendor, RAM, kernel and shell versions.", LIGHT_GREY, 0, cursor_y);
-                    scrl(&cursor_y);
+
                 } else if (strcmp(args, "clear") == 0) {
                     print("Usage: clear [-dl|--draw-logo]", WHITE, 0, cursor_y);
                     scrl(&cursor_y);
                     print("Clear screen and reset cursor.", LIGHT_GREY, 0, cursor_y);
                     scrl(&cursor_y);
-                    print("The flag mentioned above clears the screen and redraws the logo.", LIGHT_GREY, 0, cursor_y);
-                    scrl(&cursor_y);
+                    print("The flag mentioned above clears the screen and "
+                          "redraws the logo.",
+                          LIGHT_GREY, 0, cursor_y);
+
                 } else if (strcmp(args, "shlogo") == 0) {
                     print("Usage: shlogo", WHITE, 0, cursor_y);
                     scrl(&cursor_y);
                     print("Display the MyDOS logo.", LIGHT_GREY, 0, cursor_y);
-                    scrl(&cursor_y);
+
                 } else if (strcmp(args, "rbt") == 0) {
                     print("Usage: rbt", WHITE, 0, cursor_y);
                     scrl(&cursor_y);
                     print("Reboot computer via keyboard controller.", LIGHT_GREY, 0, cursor_y);
-                    scrl(&cursor_y);
+
                 } else if (strcmp(args, "shtdwn") == 0) {
                     print("Usage: shtdwn", WHITE, 0, cursor_y);
                     scrl(&cursor_y);
-                    print("Halts the CPU. Hold the power button to shut down your machine.", LIGHT_GREY, 0, cursor_y);
+                    print("Halts the CPU. Hold the power button to shut down "
+                          "your machine.",
+                          LIGHT_GREY, 0, cursor_y);
+
+                } else if (strcmp(args, "fault") == 0) {
+                    print("Usage: fault <zero|ud>", WHITE, 0, cursor_y);
                     scrl(&cursor_y);
+                    print("Executes real CPU faulting instructions (Divide-by-zero or UD2).", LIGHT_GREY, 0, cursor_y);
+
+                } else if (strcmp(args, "beep") == 0) {
+                    print("Usage: beep", WHITE, 0, cursor_y);
+                    scrl(&cursor_y);
+                    print("Play a short tone through the legacy PC speaker.",
+                          LIGHT_GREY, 0, cursor_y);
+
                 } else if (strcmp(args, "help") == 0) {
                     print("Usage: help [optional: command]", WHITE, 0, cursor_y);
                     scrl(&cursor_y);
                     print("Show help for all commands or a specific command.", LIGHT_GREY, 0, cursor_y);
-                    scrl(&cursor_y);
+
                 } else if (strcmp(args, "change-theme") == 0) {
                     print("Usage: change-theme <default|matrix|ocean|sunset>", WHITE, 0, cursor_y);
                     scrl(&cursor_y);
                     print("Change the color theme.", LIGHT_GREY, 0, cursor_y);
                     scrl(&cursor_y);
-                    print("Please note that this feature is still in beta, so there might be", LIGHT_GREY, 0, cursor_y);
+                    print("Please note that this feature is still in beta, so "
+                          "there might be",
+                          LIGHT_GREY, 0, cursor_y);
                     scrl(&cursor_y);
                     print("bugs or inconsistencies.", LIGHT_GREY, 0, cursor_y);
+
+                } else if (strcmp(args, "loadkeys") == 0) {
+                    print("Usage: loadkeys <us|de|fr|status>", WHITE, 0, cursor_y);
                     scrl(&cursor_y);
+                    print("Loads a built-in keyboard layout or reports the active layout.", LIGHT_GREY, 0, cursor_y);
+
                 } else if (strcmp(args, "mkfile") == 0) {
                     print("Usage: mkfile [FILENAME.EXTENSION]", WHITE, 0, cursor_y);
                     scrl(&cursor_y);
-                    print("Creates a file with the name you chose in the current working directory.", LIGHT_GREY, 0, cursor_y);
-                    scrl(&cursor_y);
+                    print("Creates a file with the name you chose in the "
+                          "current working directory.",
+                          LIGHT_GREY, 0, cursor_y);
+
                 } else if (strcmp(args, "ls") == 0) {
                     print("Usage: ls", WHITE, 0, cursor_y);
                     scrl(&cursor_y);
                     print("Lists files in the current directory.", LIGHT_GREY, 0, cursor_y);
-                    scrl(&cursor_y);
+
                 } else if (strcmp(args, "lsdrv") == 0) {
                     print("Usage: lsdrv", WHITE, 0, cursor_y);
                     scrl(&cursor_y);
                     print("Lists available storage drives.", LIGHT_GREY, 0, cursor_y);
-                    scrl(&cursor_y);
+
                 } else if (strcmp(args, "mkdir") == 0) {
                     print("Usage: mkdir [DIRNAME]", WHITE, 0, cursor_y);
                     scrl(&cursor_y);
-                    print("Creates a folder with the name you chose in the current working directory.", LIGHT_GREY, 0, cursor_y);
-                    scrl(&cursor_y);
+                    print("Creates a folder with the name you chose in the "
+                          "current working directory.",
+                          LIGHT_GREY, 0, cursor_y);
+
                 } else if (strcmp(args, "rm") == 0) {
                     print("Usage: rm [/PATH/TO/FILE] / [-r /PATH/TO/DIRECTORY]", WHITE, 0, cursor_y);
                     scrl(&cursor_y);
-                    print("Deletes a file or directory. Please note that this is permanent!", LIGHT_GREY, 0, cursor_y);
+                    print("Deletes a file or directory. Please note that this "
+                          "is permanent!",
+                          LIGHT_GREY, 0, cursor_y);
+
+                } else if (strcmp(args, "cd") == 0) {
+                    print("Usage: cd /PATH/TO/DIRECTORY", WHITE, 0, cursor_y);
                     scrl(&cursor_y);
-                }
-                else {
+                    print("Changes the current working directory to your "
+                          "specified one.",
+                          LIGHT_GREY, 0, cursor_y);
+                } else if (strcmp(args, "cat") == 0) {
+                    print("Usage: cat <filename>", WHITE, 0, cursor_y);
+                    scrl(&cursor_y);
+                    print("Displays the contents of a file.", LIGHT_GREY, 0, cursor_y);
+                    scrl(&cursor_y);
+                } else if (strcmp(args, "pwd") == 0) {
+                    print("Usage: pwd", WHITE, 0, cursor_y);
+                    scrl(&cursor_y);
+                    print("Prints the current working directory.", LIGHT_GREY, 0, cursor_y);
+                } else if (strcmp(args, "myeditor") == 0) {
+                    print("Usage: myeditor", WHITE, 0, cursor_y);
+                    scrl(&cursor_y);
+                    print("F1 saves, F2 opens a file, and F3 exits the editor.",
+                          LIGHT_GREY, 0, cursor_y);
+                } else {
                     print("help: unknown command, please try again", RED, 0, cursor_y);
-                    scrl(&cursor_y);
                 }
+                scrl(&cursor_y);
             }
 
             else if (strcmp(cmd, "clear") == 0) {
@@ -251,30 +342,45 @@ void KernelEntryPoint(unsigned int magic, unsigned int mbi) {
                     scrl(&cursor_y);
                     print("default, matrix, ocean, sunset", LIGHT_GREY, 0, cursor_y);
                     scrl(&cursor_y);
-                }
-                else {
+                } else {
                     clear_screen();
                     print_logo();
                     cursor_y = 7;
+                }
+            } else if (strcmp(cmd, "loadkeys") == 0) {
+                if (strcmp(args, "status") == 0) {
+                    print("Active keyboard layout: ", WHITE, 0, cursor_y);
+                    print(keyboard_get_layout_name(), GREEN, 24, cursor_y);
+                    scrl(&cursor_y);
+                } else if (args[0] == '\0') {
+                    print("Usage: loadkeys <us|de|fr|status>", RED, 0, cursor_y);
+                    scrl(&cursor_y);
+                    print("Available layouts: us, de, fr; use 'status' to check the active layout.", WHITE, 0, cursor_y);
+                    scrl(&cursor_y);
+                } else if (keyboard_load_layout(args)) {
+                    print("Keyboard layout: ", WHITE, 0, cursor_y);
+                    print(keyboard_get_layout_name(), GREEN, 19, cursor_y);
+                    scrl(&cursor_y);
+                } else {
+                    print("loadkeys: unsupported layout. Try us, de, or fr.", RED, 0, cursor_y);
+                    scrl(&cursor_y);
                 }
             } else if (strcmp(cmd, "echo") == 0) {
                 if (args[0] == '\0') {
                     print("echo: echo requires some text", RED, 0, cursor_y);
                     scrl(&cursor_y);
-                }
-                else {
-                    unsigned char color = WHITE; // Default color
+                } else {
+                    unsigned char color = WHITE;
                     char *text = args;
                     char *color_arg = 0;
 
                     if (strncmp(args, "-c ", 3) == 0 || strncmp(args, "-c:", 3) == 0) {
                         color_arg = args + 3;
-                    } // Check for 3 character prefix
-                    else if (strncmp(args, "--color ", 8) == 0 || strncmp(args, "--color:", 8) == 0) {
+                    } else if (strncmp(args, "--color ", 8) == 0 || strncmp(args, "--color:", 8) == 0) {
                         color_arg = args + 8;
-                    } // Check for 8 character prefix
-                    if (color_arg != 0)
-                    { // If a flag is passed isolate color and twxt
+                    }
+
+                    if (color_arg != 0) {
                         text = "";
                         for (int i = 0; color_arg[i] != '\0'; i++) {
                             if (color_arg[i] == ' ') {
@@ -291,16 +397,13 @@ void KernelEntryPoint(unsigned int magic, unsigned int mbi) {
                         }
                     }
 
-                    // Check if theres any text to print
                     if (text[0] == '\0') {
                         print("trml: echo: echo requires text", RED, 0, cursor_y);
                         scrl(&cursor_y);
-                    }
-                    else {
+                    } else {
                         print(text, color, 0, cursor_y);
                         scrl(&cursor_y);
                     }
-                    // print(text, WHITE, 0, cursor_y); scrl(&cursor_y);
                 }
             }
 
@@ -350,12 +453,12 @@ void KernelEntryPoint(unsigned int magic, unsigned int mbi) {
                 } else if (strcmp(args, "-h") == 0 || strcmp(args, "--help") == 0) {
                     print("Usage: date [-t|--time] [-d|--date] [-12|--12h]", WHITE, 0, cursor_y);
                     scrl(&cursor_y);
-                }
-                else {
+                } else {
                     format_rtc_datetime(datetime);
                     print(datetime, WHITE, 0, cursor_y);
                     scrl(&cursor_y);
                 }
+                
             } else if (strcmp(cmd, "uptime") == 0) {
                 unsigned char sec = bcdtb(rtc_read(0x00));
                 unsigned char min = bcdtb(rtc_read(0x02));
@@ -454,8 +557,7 @@ void KernelEntryPoint(unsigned int magic, unsigned int mbi) {
                     uptime_str[pos++] = 'n';
                     uptime_str[pos++] = 'd';
                     uptime_str[pos++] = 's';
-                }
-                else {
+                } else {
                     if (d > 0) {
                         char d_buf[16];
                         append_uint(d_buf, d);
@@ -478,6 +580,9 @@ void KernelEntryPoint(unsigned int magic, unsigned int mbi) {
                 uptime_str[pos] = '\0';
                 print(uptime_str, WHITE, 0, cursor_y);
                 scrl(&cursor_y);
+            } else if (strcmp(cmd, "beep") == 0) {
+                pc_speaker_beep();
+                print("BEEP! :>", GREEN, 0, cursor_y);
             } else if (strcmp(cmd, "shlogo") == 0) {
                 print_logo_at(0, cursor_y);
                 cursor_y += 6;
@@ -486,28 +591,24 @@ void KernelEntryPoint(unsigned int magic, unsigned int mbi) {
                 if (args[0] == '\0') {
                     print("Usage: mkfile <filename>", RED, 0, cursor_y);
                     scrl(&cursor_y);
-                }
-                else {
+                } else {
                     FRESULT result = make_file(args);
 
                     if (result == FR_OK) {
                         print("mkfile: File created.", GREEN, 0, cursor_y);
                     } else if (result == FR_EXIST) {
                         print("mkfile: File already exists.", RED, 0, cursor_y);
-                    }
-                    else {
+                    } else {
                         print("mkfile: Could not create file.", RED, 0, cursor_y);
                     }
 
                     scrl(&cursor_y);
                 }
-            }
-            else if (strcmp(cmd, "rm") == 0){
+            } else if (strcmp(cmd, "rm") == 0) {
                 FILINFO fno;
-                if (args[0] == '\0'){
+                if (args[0] == '\0') {
                     print("Usage: rm <filename>", RED, 0, cursor_y);
-                } else if (strncmp(args, "-r", 2) == 0 ||
-                           strncmp(args, "--recursive", 11) == 0) {
+                } else if (strncmp(args, "-r", 2) == 0 || strncmp(args, "--recursive", 11) == 0) {
                     char *path = args;
                     while (*path && *path != ' ')
                         path++;
@@ -515,14 +616,13 @@ void KernelEntryPoint(unsigned int magic, unsigned int mbi) {
                         path++;
 
                     if (*path == '\0') {
-                        print("rm: missing operand after '-r'", RED, 0,
-                              cursor_y);
+                        print("rm: missing operand after '-r'", RED, 0, cursor_y);
                     } else {
                         FRESULT result = rm_recursive(path);
                         if (result == FR_OK) {
                             print("rm: Directory removed.", GREEN, 0, cursor_y);
                         } else {
-                            print("rm: Could not remove directory.", RED, 0,cursor_y);
+                            print("rm: Could not remove directory.", RED, 0, cursor_y);
                         }
                     }
                 } else if (f_stat(args, &fno) != FR_OK) {
@@ -538,85 +638,129 @@ void KernelEntryPoint(unsigned int magic, unsigned int mbi) {
                     }
                 }
                 scrl(&cursor_y);
-            }
-        else if (strcmp(cmd, "mkdir") == 0) {
-            if (args[0] == '\0') {
-                print("Usage: mkdir <dirname>", RED, 0, cursor_y);
-                scrl(&cursor_y);
-            }
-            else {
-                FRESULT result = make_dir(args);
-                if (result == FR_OK) {
-                    print("mkdir: Directory created.", GREEN, 0, cursor_y);
-                } else if (result == FR_EXIST) {
-                    print("mkdir: Directory already exists.", RED, 0, cursor_y);
-                }
-                else {
-                    print("mkdir: Could not create directory.", RED, 0, cursor_y);
-                }
-                scrl(&cursor_y);
-            }
-        } else if (strcmp(cmd, "ls") == 0) {
-            if (args[0] != '\0') {
-                print("Usage: ls", RED, 0, cursor_y);
-                scrl(&cursor_y);
-            }
-            else {
-                FRESULT result = list_files(&cursor_y);
-
-                if (result != FR_OK) {
-                    print("ls: Could not list files.", RED, 0, cursor_y);
+            } else if (strcmp(cmd, "mkdir") == 0) {
+                if (args[0] == '\0') {
+                    print("Usage: mkdir <dirname>", RED, 0, cursor_y);
+                    scrl(&cursor_y);
+                } else {
+                    FRESULT result = make_dir(args);
+                    if (result == FR_OK) {
+                        print("mkdir: Directory created.", GREEN, 0, cursor_y);
+                    } else if (result == FR_EXIST) {
+                        print("mkdir: Directory already exists.", RED, 0, cursor_y);
+                    } else {
+                        print("mkdir: Could not create directory.", RED, 0, cursor_y);
+                    }
                     scrl(&cursor_y);
                 }
-            }
-        } else if (strcmp(cmd, "lsdrv") == 0) {
-            if (args[0] != '\0') {
-                print("Usage: lsdrv", RED, 0, cursor_y);
+            } else if (strcmp(cmd, "ls") == 0) {
+                if (args[0] != '\0') {
+                    print("Usage: ls", RED, 0, cursor_y);
+                    scrl(&cursor_y);
+                } else {
+                    FRESULT result = list_files(".", &cursor_y);
+
+                    if (result != FR_OK) {
+                        print("ls: Could not list files.", RED, 0, cursor_y);
+                        scrl(&cursor_y);
+                    }
+                }
+            } else if (strcmp(cmd, "lsdrv") == 0) {
+                if (args[0] != '\0') {
+                    print("Usage: lsdrv", RED, 0, cursor_y);
+                } else {
+                    list_drives(&cursor_y);
+                }
+                scrl(&cursor_y);
+            } else if (strcmp(cmd, "cd") == 0) {
+                if (args[0] == '\0') {
+                    print("Usage: cd /PATH/TO/DIRECTORY", RED, 0, cursor_y);
+                    scrl(&cursor_y);
+                } else {
+                    FRESULT result = f_chdir(args);
+                    if (result == FR_NO_PATH) {
+                        print("cd: Directory not found", RED, 0, cursor_y);
+                        scrl(&cursor_y);
+                    }
+                }
+            } else if (strcmp(cmd, "cat") == 0) {
+                if (args[0] == '\0') {
+                    print("Usage: cat <filename>", RED, 0, cursor_y);
+                    scrl(&cursor_y);
+                } else {
+                    FRESULT res = cat_file(args, &cursor_y);
+                    if (res == FR_NO_FILE || res == FR_NO_PATH) {
+                        print("cat: File not found.", RED, 0, cursor_y);
+                        scrl(&cursor_y);
+                    } else if (res != FR_OK) {
+                        print("cat: Error reading file.", RED, 0, cursor_y);
+                        scrl(&cursor_y);
+                    }
+                }
+            } else if (strcmp(cmd, "myeditor") == 0) {
+                myeditor();
+                cursor_y = 0;
+            } else if (strcmp(cmd, "pwd") == 0) {
+                FRESULT result = f_getcwd(cmd, sizeof(cmd));
+                if (result == FR_OK) {
+                    print(cmd, WHITE, 0, cursor_y);
+                } else {
+                    print("pwd: Error retrieving current working directory.", RED, 0, cursor_y);
+                }
                 scrl(&cursor_y);
             }
-            else {
-                list_drives(&cursor_y);
+            else if (strcmp(cmd, "shtdwn") == 0) {
+                shutdown();
+            } else if (strcmp(cmd, "fault") == 0) {
+                if (strcmp(args, "zero") == 0 || strcmp(args, "de") == 0) {
+                    volatile int zero = 0;
+                    volatile int x = 42 / zero;
+                    (void)x;
+                } else if (strcmp(args, "ud") == 0) {
+                    __asm__ volatile("ud2");
+                } else {
+                    print("Usage: fault <zero|ud>", RED, 0, cursor_y);
+                    scrl(&cursor_y);
+                }
+            } else if (strcmp(cmd, "rbt") == 0) {
+                __asm__ volatile("movb $0xFE, %%al\n\t"
+                                 "outb %%al, $0x64\n\t"
+                                 :
+                                 :
+                                 : "al");
+            } else if (cmd[0] != '\0') {
+                print("trml: unknown command, try again or run 'help' for "
+                      "assistance",
+                      RED, 0, cursor_y);
+                scrl(&cursor_y);
             }
-        } else if (strcmp(cmd, "shtdwn") == 0) {
-            shutdown();
-        } else if (strcmp(cmd, "rbt") == 0) {
-            __asm__ volatile(
-                "movb $0xFE, %%al\n\t"
-                "outb %%al, $0x64\n\t"
-                :
-                :
-                : "al");
-        } else if (cmd[0] != '\0') {
-            print("trml: unknown command, try again or run 'help' for assistance", RED, 0, cursor_y);
-            scrl(&cursor_y);
-        }
-        print("MyDOS", GREEN, 0, cursor_y);
-        print("[", RED, 5, cursor_y);
-        print("root", LIGHT_RED, 6, cursor_y);
-        print("]", RED, 10, cursor_y);
-        print(":~", WHITE, 11, cursor_y);
-        print("#", RED, 13, cursor_y);
-        move_cursor(cursor_x, cursor_y);
+            print("MyDOS", GREEN, 0, cursor_y);
+            print("[", RED, 5, cursor_y);
+            print("root", LIGHT_RED, 6, cursor_y);
+            print("]", RED, 10, cursor_y);
+            print("/", LIGHT_RED, 11, cursor_y);
+            print(":~#", WHITE, a, cursor_y);
+            move_cursor(cursor_x, cursor_y);
 
-        cursor_x = PROMPT_LENGTH;
-        cmd_len = 0;
+            cursor_x = PROMPT_LENGTH;
+            cmd_len = 0;
 
-        move_cursor(cursor_x, cursor_y);
-    }
-
-    else {
-        if (cmd_len < 63) {
-            cmd[cmd_len++] = c;
-
-            char str[2] = {c, '\0'};
-
-            print(str, WHITE, cursor_x, cursor_y);
-
-            cursor_x++;
             move_cursor(cursor_x, cursor_y);
         }
+
+        else {
+            if (cmd_len < 63) {
+                cmd[cmd_len++] = c;
+
+                char str[2] = {c, '\0'};
+
+                print(str, WHITE, cursor_x, cursor_y);
+
+                cursor_x++;
+                move_cursor(cursor_x, cursor_y);
+            }
+        }
     }
-}
 }
 
 void scrl(int *cursor_y) {
