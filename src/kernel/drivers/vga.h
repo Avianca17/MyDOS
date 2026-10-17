@@ -8,5 +8,7 @@ void print(const char* msg, unsigned char color, int x, int y);
 int change_theme(const char* name);
 void clear_screen(void);
 void scroll_screen(int* cursor_y);
+void print_logo_color(int x, int start_y, unsigned char color);
+void draw_pattern(const char* const pattern[], int width, int height, unsigned char color, int x, int y);
 
 #endif

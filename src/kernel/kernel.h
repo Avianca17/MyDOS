@@ -7,7 +7,7 @@
 #define VGA_CTRL 0x3D4
 #define VGA_DATA 0x3D5
 
-#define PROMPT_LENGTH 15
+#define PROMPT_LENGTH 16
 
 #define BLACK 0x00
 #define BLUE 0x01
@@ -29,10 +29,15 @@
 void KernelEntryPoint(unsigned int magic, unsigned int mbi);
 void scrl(int* cursor_y);
 
-#include "drivers/vga.h"
-#include "lib/string.h"
 #include "drivers/rtc.h"
+#include "drivers/pc_speaker.h"
+#include "drivers/vga.h"
+#include "helper/fshelpers/fshelpers.h"
+#include "helper/helpers.h"
 #include "lib/hardware.h"
 #include "lib/shtdwn.h"
-#include "helper/helpers.h"
-#include "helper/fshelpers/fshelpers.h"
+#include "lib/string.h"
+#include "panic.h"
+#include "gdt/gdt.h"
+#include "interrupts/idt.h"
+#include "../programs/myeditor/myeditor.h"

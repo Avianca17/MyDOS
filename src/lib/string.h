@@ -9,5 +9,6 @@ void* memcpy(void* destination, const void* source, unsigned int count);
 int memcmp(const void* first, const void* second, unsigned int count);
 char* strchr(const char* string, int character);
 void itoanum(unsigned int value, char out[32]);
+void itohex(unsigned int value, char out[11]);
 
 #endif

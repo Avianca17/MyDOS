@@ -116,52 +116,64 @@ void move_cursor(int x, int y) {
     );
 }
 
+void draw_pattern(const char* const pattern[], int width, int height, unsigned char color, int x, int y) {
+    draw_logo_pattern(pattern, width, height, color, x, y);
+}
+
+static const char* m[] = {
+    "M    M",
+    "MM  MM",
+    "M MM M",
+    "M MM M",
+    "M    M",
+    "M    M"
+};
+
+static const char* y_pattern[] = {
+    "      ",
+    "y    y",
+    "y    y",
+    " yy y ",
+    "  yy  ",
+    " yy   "
+};
+
+static const char* d[] = {
+    "DDDDD ",
+    "D    D",
+    "D    D",
+    "D    D",
+    "D    D",
+    "DDDDD "
+};
+
+static const char* o[] = {
+    " OOOO ",
+    "O    O",
+    "O    O",
+    "O    O",
+    "O    O",
+    " OOOO "
+};
+
+static const char* s[] = {
+    " SSSSS",
+    "S     ",
+    " SSSS ",
+    "     S",
+    "     S",
+    "SSSSS "
+};
+
+void print_logo_color(int x, int start_y, unsigned char color) {
+    draw_logo_pattern(m, 6, 6, color, x + 2, start_y);
+    draw_logo_pattern(y_pattern, 6, 6, color, x + 9, start_y);
+    draw_logo_pattern(d, 6, 6, color, x + 16, start_y);
+    draw_logo_pattern(o, 6, 6, color, x + 23, start_y);
+    draw_logo_pattern(s, 6, 6, color, x + 30, start_y);
+}
+
 void print_logo_at(int x, int start_y) {
-    static const char* m[] = {
-        "M    M",
-        "MM  MM",
-        "M MM M",
-        "M MM M",
-        "M    M",
-        "M    M"
-    };
-
-    static const char* y_pattern[] = {
-        "      ",
-        "y    y",
-        "y    y",
-        " yy y ",
-        "  yy  ",
-        " yy   "
-    };
-
-    static const char* d[] = {
-        "DDDDD ",
-        "D    D",
-        "D    D",
-        "D    D",
-        "D    D",
-        "DDDDD "
-    };
-
-    static const char* o[] = {
-        " OOOO ",
-        "O    O",
-        "O    O",
-        "O    O",
-        "O    O",
-        " OOOO "
-    };
-
-    static const char* s[] = {
-        " SSSSS",
-        "S     ",
-        " SSSS ",
-        "     S",
-        "     S",
-        "SSSSS "
-    };
-
     draw_logo_pattern(m, 6, 6, DARK_GREY, x + 2, start_y);
     draw_logo_pattern(y_pattern, 6, 6, DARK_GREY, x + 9, start_y);
     draw_logo_pattern(d, 6, 6, RED, x + 16, start_y);

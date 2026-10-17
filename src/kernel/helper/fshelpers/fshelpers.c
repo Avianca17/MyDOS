@@ -4,11 +4,51 @@
 #include "../../drivers/vga.h"
 #include "../../kernel.h"
 
-static FATFS fs;
+static FATFS fs[FF_VOLUMES];
 static BYTE format_work[FF_MAX_SS * 4];
+static BYTE active_volume;
 
 FRESULT fs_init(void) {
-    return f_mount(&fs, "", 1);
+    FRESULT first_error = FR_NO_FILESYSTEM;
+    int mounted_volume = -1;
+    int first_ready_volume = -1;
+    TCHAR path[3];
+
+    for (BYTE volume = 0; volume < FF_VOLUMES; volume++) {
+        if (disk_initialize(volume) != 0) {
+            continue;
+        }
+        if (first_ready_volume < 0) {
+            first_ready_volume = volume;
+        }
+
+        path[0] = '0' + volume;
+        path[1] = ':';
+        path[2] = '\0';
+        FRESULT result = f_mount(&fs[volume], path, 1);
+        if (result == FR_OK) {
+            if (mounted_volume < 0) {
+                mounted_volume = volume;
+            }
+        } else if (result != FR_NO_FILESYSTEM && first_error == FR_NO_FILESYSTEM) {
+            first_error = result;
+        }
+    }
+
+    if (mounted_volume >= 0) {
+        active_volume = (BYTE)mounted_volume;
+        path[0] = '0' + active_volume;
+        path[1] = ':';
+        path[2] = '\0';
+        return f_chdrive(path);
+    }
+
+    if (first_ready_volume < 0) {
+        return FR_NOT_READY;
+    }
+
+    active_volume = (BYTE)first_ready_volume;
+    return first_error;
 }
 
 FRESULT fs_format(void) {
@@ -20,12 +60,17 @@ FRESULT fs_format(void) {
         .au_size = 0
     };
 
-    FRESULT result = f_mkfs("", &options, format_work, sizeof(format_work));
+    TCHAR path[3] = { '0' + active_volume, ':', '\0' };
+    FRESULT result = f_mkfs(path, &options, format_work, sizeof(format_work));
     if (result != FR_OK) {
         return result;
     }
 
-    return f_mount(&fs, "", 1);
+    result = f_mount(&fs[active_volume], path, 1);
+    if (result != FR_OK) {
+        return result;
+    }
+    return f_chdrive(path);
 }
 
 FRESULT make_file(const TCHAR* path) {
@@ -41,10 +86,10 @@ FRESULT make_file(const TCHAR* path) {
 FRESULT make_dir(const TCHAR* path) {
     return f_mkdir(path);
 }
-FRESULT list_files(int* cursor_y) {
+FRESULT list_files(const TCHAR *path, int *cursor_y) {
     DIR directory;
     FILINFO file_info;
-    FRESULT res = f_opendir(&directory, "/");
+    FRESULT res = f_opendir(&directory, path);
 
     if (res != FR_OK) {
         return res;
@@ -74,8 +119,12 @@ void list_drives(int *cursor_y)
 
     for (int i = 0; i < FF_VOLUMES; i++)
     {
-        // Only show drives that are actually available/initialized
-        if (disk_status(i) != 0)
+        DSTATUS status = disk_status((BYTE)i);
+        if ((status & STA_NOINIT) != 0)
+        {
+            status = disk_initialize((BYTE)i);
+        }
+        if (status != 0)
         {
             continue;
         }
@@ -171,4 +220,44 @@ FRESULT rm_recursive(const TCHAR *path) {
     }
 
     return f_unlink(path);
+}
+FRESULT cat_file(const TCHAR *path, int *cursor_y) {
+    FIL file;
+    FRESULT res = f_open(&file, path, FA_READ);
+    if (res != FR_OK) {
+        return res;
+    }
+
+    char buffer[128];
+    UINT bytes_read;
+    int cursor_x = 0;
+
+    while (f_read(&file, buffer, sizeof(buffer), &bytes_read) == FR_OK && bytes_read > 0) {
+        for (UINT i = 0; i < bytes_read; i++) {
+            char ch = buffer[i];
+
+            if (ch == '\r') {
+                continue;
+            } else if (ch == '\n') {
+                cursor_x = 0;
+                scrl(cursor_y);
+            } else {
+                if (cursor_x == VGA_WIDTH) {
+                    cursor_x = 0;
+                    scrl(cursor_y);
+                }
+
+                char str[2] = {ch, '\0'};
+                print(str, WHITE, cursor_x, *cursor_y);
+                cursor_x++;
+            }
+        }
+    }
+
+    if (cursor_x > 0) {
+        scrl(cursor_y);
+    }
+
+    f_close(&file);
+    return FR_OK;
 }

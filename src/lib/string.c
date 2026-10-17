@@ -81,3 +81,14 @@ void itoanum(unsigned int value, char out[32]) {
 
     out[i] = '\0';
 }
+
+void itohex(unsigned int value, char out[11]) {
+    static const char hex_digits[] = "0123456789ABCDEF";
+    out[0] = '0';
+    out[1] = 'x';
+    for (int i = 0; i < 8; i++) {
+        int shift = (7 - i) * 4;
+        out[2 + i] = hex_digits[(value >> shift) & 0xF];
+    }
+    out[10] = '\0';
+}

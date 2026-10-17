@@ -1,8 +1,8 @@
 #include "kernel.h"
 #include "drivers/keyboard.h"
 
-#define KERNEL_VERSION "v0.3"
-#define SHELL_VERSION "v0.2"
+#define KERNEL_VERSION "v0.3.1-ex"
+#define SHELL_VERSION "v0.3-stable"
 
 static unsigned int uptime = 0;
 
@@ -21,6 +21,47 @@ static const char *format_error_message(FRESULT result) {
         default:
             return "FAT32 format failed: filesystem error.";
     }
+}
+
+static unsigned int elapsed_uptime_seconds(void) {
+    unsigned char sec = bcdtb(rtc_read(0x00));
+    unsigned char min = bcdtb(rtc_read(0x02));
+    unsigned char hr = bcdtb(rtc_read(0x04));
+    unsigned int now_seconds = rtcts(hr, min, sec);
+
+    if (now_seconds < uptime) {
+        now_seconds += 86400u;
+    }
+
+    return now_seconds - uptime;
+}
+
+static void format_short_uptime(unsigned int elapsed, char *out) {
+    unsigned int days = elapsed / 86400u;
+    unsigned int hours = (elapsed % 86400u) / 3600u;
+    unsigned int minutes = (elapsed % 3600u) / 60u;
+    unsigned int seconds = elapsed % 60u;
+    int pos = 0;
+
+    if (days > 0) {
+        char days_buf[16];
+        append_uint(days_buf, days);
+        for (int i = 0; days_buf[i] != '\0'; i++) {
+            out[pos++] = days_buf[i];
+        }
+        out[pos++] = 'd';
+        out[pos++] = ' ';
+    }
+
+    out[pos++] = (char)('0' + hours / 10);
+    out[pos++] = (char)('0' + hours % 10);
+    out[pos++] = ':';
+    out[pos++] = (char)('0' + minutes / 10);
+    out[pos++] = (char)('0' + minutes % 10);
+    out[pos++] = ':';
+    out[pos++] = (char)('0' + seconds / 10);
+    out[pos++] = (char)('0' + seconds % 10);
+    out[pos] = '\0';
 }
 
 static void help_row(const char *text, unsigned char color, int *cursor_y) {
@@ -91,7 +132,7 @@ void KernelEntryPoint(unsigned int magic, unsigned int mbi) {
     print("/", LIGHT_RED, 11, cursor_y);
     print(":~#", WHITE, 12, cursor_y);
     move_cursor(cursor_x, cursor_y);
-    // MyDOS[root]:~/
+    // MyDOS[root]/:~# _
 
     char cmd[64];
     int cmd_len = 0;
@@ -152,7 +193,7 @@ void KernelEntryPoint(unsigned int magic, unsigned int mbi) {
                     help_row("|                                                                          |", WHITE, &cursor_y);
                     help_row("| [ SHELL ]                                                                |", YELLOW, &cursor_y);
                     help_row("|   help            clear           echo           change-theme            |", LIGHT_GREY, &cursor_y);
-                    help_row("|   loadkeys        date           uptime         sysinfo                  |", LIGHT_GREY, &cursor_y);
+                    help_row("|   loadkeys        date           uptime          fetch                   |", LIGHT_GREY, &cursor_y);
                     help_row("|   shlogo          beep                                                   |", LIGHT_GREY, &cursor_y);
                     help_row("|                                                                          |", WHITE, &cursor_y);
                     help_row("| [ SYSTEM AND DEBUGGING ]                                                 |", LIGHT_CYAN, &cursor_y);
@@ -209,12 +250,7 @@ void KernelEntryPoint(unsigned int magic, unsigned int mbi) {
                           "in seconds.",
                           LIGHT_GREY, 0, cursor_y);
 
-                } else if (strcmp(args, "sysinfo") == 0) {
-                    print("Usage: sysinfo", WHITE, 0, cursor_y);
-                    scrl(&cursor_y);
-                    print("Display CPU vendor, RAM, kernel and shell versions.", LIGHT_GREY, 0, cursor_y);
-
-                } else if (strcmp(args, "clear") == 0) {
+                }  else if (strcmp(args, "clear") == 0) {
                     print("Usage: clear [-dl|--draw-logo]", WHITE, 0, cursor_y);
                     scrl(&cursor_y);
                     print("Clear screen and reset cursor.", LIGHT_GREY, 0, cursor_y);
@@ -259,18 +295,16 @@ void KernelEntryPoint(unsigned int magic, unsigned int mbi) {
                 } else if (strcmp(args, "change-theme") == 0) {
                     print("Usage: change-theme <default|matrix|ocean|sunset>", WHITE, 0, cursor_y);
                     scrl(&cursor_y);
-                    print("Change the color theme.", LIGHT_GREY, 0, cursor_y);
-                    scrl(&cursor_y);
-                    print("Please note that this feature is still in beta, so "
-                          "there might be",
-                          LIGHT_GREY, 0, cursor_y);
-                    scrl(&cursor_y);
-                    print("bugs or inconsistencies.", LIGHT_GREY, 0, cursor_y);
-
+                    print("Changes the color theme.", LIGHT_GREY, 0, cursor_y);
                 } else if (strcmp(args, "loadkeys") == 0) {
                     print("Usage: loadkeys <us|de|fr|status>", WHITE, 0, cursor_y);
                     scrl(&cursor_y);
                     print("Loads a built-in keyboard layout or reports the active layout.", LIGHT_GREY, 0, cursor_y);
+
+                } else if (strcmp(args, "fetch") == 0) {
+                    print("Usage: fetch", WHITE, 0, cursor_y);
+                    scrl(&cursor_y);
+                    print("Displays system information and uptime beside the MyDOS logo.", LIGHT_GREY, 0, cursor_y);
 
                 } else if (strcmp(args, "mkfile") == 0) {
                     print("Usage: mkfile [FILENAME.EXTENSION]", WHITE, 0, cursor_y);
@@ -320,6 +354,8 @@ void KernelEntryPoint(unsigned int magic, unsigned int mbi) {
                     print("Prints the current working directory.", LIGHT_GREY, 0, cursor_y);
                 } else if (strcmp(args, "myeditor") == 0) {
                     print("Usage: myeditor", WHITE, 0, cursor_y);
+                    scrl(&cursor_y);
+                    print("Opens the built-in MyEditor program.", LIGHT_GREY, 0, cursor_y);
                     scrl(&cursor_y);
                     print("F1 saves, F2 opens a file, and F3 exits the editor.",
                           LIGHT_GREY, 0, cursor_y);
@@ -407,34 +443,70 @@ void KernelEntryPoint(unsigned int magic, unsigned int mbi) {
                 }
             }
 
-            else if (strcmp(cmd, "sysinfo") == 0) {
+            else if (strcmp(cmd, "fetch") == 0) {
                 char vendor[13];
                 char ram_buf[32];
+                char uptime_buf[32];
 
                 unsigned int ram_mb = get_total_ram_mb(mbi);
 
                 cpuid_vendor(vendor);
                 itoanum(ram_mb, ram_buf);
+                format_short_uptime(elapsed_uptime_seconds(), uptime_buf);
 
-                print("MyDOS Kernel: ", RED, 0, cursor_y);
-                print(KERNEL_VERSION, WHITE, 14, cursor_y);
+                while (cursor_y + 13 > VGA_HEIGHT) {
+                    int scroll_y = VGA_HEIGHT;
+                    scroll_screen(&scroll_y);
+                    cursor_y--;
+                }
 
-                scrl(&cursor_y);
+                print_logo_at(0, cursor_y);
+                print("+--KEYS---------+--VALUES----------+", BLUE, 40, cursor_y);
+                print("| User          | root             |", RED, 40, cursor_y + 1);
+                print("| Host          | MyDOS            |", GREEN, 40, cursor_y + 2);
+                print("| Kernel        | ", BLUE, 40, cursor_y + 3);
+                print(KERNEL_VERSION, WHITE, 58, cursor_y + 3);
+                print("|", BLUE, 75, cursor_y + 3);
+                print("| Shell         | ", YELLOW, 40, cursor_y + 4);
+                print(SHELL_VERSION, WHITE, 58, cursor_y + 4);
+                print("|", YELLOW, 75, cursor_y + 4);
+                print("| Uptime        | ", LIGHT_MAGENTA, 40, cursor_y + 5);
+                print(uptime_buf, WHITE, 58, cursor_y + 5);
+                print("|", LIGHT_MAGENTA, 75, cursor_y + 5);
+                print("| Processor     | ", MAGENTA, 40, cursor_y + 6);
+                print(vendor, WHITE, 58, cursor_y + 6);
+                print("|", MAGENTA, 75, cursor_y + 6);
+                print("| Total RAM     | ", LIGHT_BLUE, 40, cursor_y + 7);
+                print(ram_buf, WHITE, 58, cursor_y + 7);
+                print(" MB", WHITE, 58 + strlen(ram_buf), cursor_y + 7);
+                print("|", LIGHT_BLUE, 75, cursor_y + 7);
+                print("+----------------+-----------------+", BLUE, 40, cursor_y + 8);
 
-                print("Shell: ", GREEN, 0, cursor_y);
-                print(SHELL_VERSION, WHITE, 7, cursor_y);
+                static const char block[] = {(char)0xDB, (char)0xDB, '\0'};
 
-                scrl(&cursor_y);
+                print("+-COLORS---------+", BLUE, 40, cursor_y + 9);
+                print("| ", BLUE, 40, cursor_y + 10);
+                print(block, BLUE, 42, cursor_y + 10);
+                print(block, GREEN, 44, cursor_y + 10);
+                print(block, CYAN, 46, cursor_y + 10);
+                print(block, RED, 48, cursor_y + 10);
+                print(block, MAGENTA, 50, cursor_y + 10);
+                print(block, BROWN, 52, cursor_y + 10);
+                print(block, LIGHT_GREY, 54, cursor_y + 10);
+                print("|", BLUE, 57, cursor_y + 10);
 
-                print("CPU Vendor: ", BLUE, 0, cursor_y);
-                print(vendor, WHITE, 13, cursor_y);
+                print("| ", BLUE, 40, cursor_y + 11);
+                print(block, DARK_GREY, 42, cursor_y + 11);
+                print(block, LIGHT_BLUE, 44, cursor_y + 11);
+                print(block, LIGHT_GREEN, 46, cursor_y + 11);
+                print(block, LIGHT_CYAN, 48, cursor_y + 11);
+                print(block, LIGHT_RED, 50, cursor_y + 11);
+                print(block, LIGHT_MAGENTA, 52, cursor_y + 11);
+                print(block, YELLOW, 54, cursor_y + 11);
+                print("|", BLUE, 57, cursor_y + 11);
+                print("+----------------+", BLUE, 40, cursor_y + 12);
 
-                scrl(&cursor_y);
-
-                print("RAM: ", RED, 0, cursor_y);
-                print(ram_buf, WHITE, 6, cursor_y);
-                print(" MB", WHITE, 10, cursor_y);
-
+                cursor_y += 12;
                 scrl(&cursor_y);
             } else if (strcmp(cmd, "date") == 0) {
                 char datetime[64];
@@ -458,17 +530,8 @@ void KernelEntryPoint(unsigned int magic, unsigned int mbi) {
                     print(datetime, WHITE, 0, cursor_y);
                     scrl(&cursor_y);
                 }
-                
             } else if (strcmp(cmd, "uptime") == 0) {
-                unsigned char sec = bcdtb(rtc_read(0x00));
-                unsigned char min = bcdtb(rtc_read(0x02));
-                unsigned char hr = bcdtb(rtc_read(0x04));
-
-                unsigned int now_seconds = rtcts(hr, min, sec);
-                if (now_seconds < uptime) {
-                    now_seconds += 86400u;
-                }
-                unsigned int elapsed = now_seconds - uptime;
+                unsigned int elapsed = elapsed_uptime_seconds();
 
                 char uptime_str[64];
                 int pos = 0;
