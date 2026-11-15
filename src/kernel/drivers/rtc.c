@@ -1,6 +1,4 @@
-#include "kernel.h"
-#include "rtc.h"
-#include "drivers/keyboard.h"
+#include <mydos.h>
 
 static inline void outb(unsigned short port, unsigned char value) {
     __asm__ volatile ("outb %0, %1" : : "a"(value), "Nd"(port));
@@ -8,7 +6,7 @@ static inline void outb(unsigned short port, unsigned char value) {
 
 unsigned char rtc_read(unsigned char reg) {
     outb(0x70, reg);
-    return inb(0x71);
+    return io_inb(0x71);
 }
 
 unsigned char bcdtb(unsigned char value) {

@@ -1,10 +1,72 @@
-#include "kernel.h"
-#include "drivers/keyboard.h"
+#include <mydos.h>
 
-#define KERNEL_VERSION "v0.3.1-ex"
-#define SHELL_VERSION "v0.3-stable"
+#define KERNEL_VERSION "mk-0.4-stable"
+#define SHELL_VERSION "trml-0.3.1"
 
 static unsigned int uptime = 0;
+
+/* GRUB's Multiboot v1 handoff uses these flag bits to mark optional fields. */
+#define MULTIBOOT_BOOTLOADER_MAGIC 0x2BADB002u
+#define MULTIBOOT_INFO_CMDLINE 0x00000004u
+#define MULTIBOOT_INFO_MODULES 0x00000008u
+
+/* Multiboot v1 module descriptors contain [start, end), name pointer, reserved. */
+typedef struct __attribute__((packed)) {
+    uint32_t start;
+    uint32_t end;
+    uint32_t command_line;
+    uint32_t reserved;
+} multiboot_module_t;
+
+static int multiboot_installer_requested(unsigned int magic, unsigned int mbi) {
+    if (magic != MULTIBOOT_BOOTLOADER_MAGIC || mbi == 0) {
+        return 0;
+    }
+
+    /* The command-line pointer is word 4 in the v1 boot-info structure. */
+    const uint32_t *info = (const uint32_t *)(uintptr_t)mbi;
+    if ((info[0] & MULTIBOOT_INFO_CMDLINE) == 0 || info[4] == 0) {
+        return 0;
+    }
+
+    return strcmp((const char *)(uintptr_t)info[4], "installer") == 0;
+}
+
+static int multiboot_find_installer_payload(unsigned int mbi,
+                                            const uint8_t **payload,
+                                            uint32_t *payload_size) {
+    /* Module count and descriptor-list address are words 5 and 6. */
+    const uint32_t *info = (const uint32_t *)(uintptr_t)mbi;
+    if ((info[0] & MULTIBOOT_INFO_MODULES) == 0 || info[5] == 0 || info[6] == 0) {
+        return 0;
+    }
+
+    uint32_t module_count = info[5];
+    uint32_t modules_address = info[6];
+    /* Refuse a count whose descriptor array would wrap the 32-bit address space. */
+    if (module_count > (0xFFFFFFFFu - modules_address) / sizeof(multiboot_module_t)) {
+        return 0;
+    }
+
+    const multiboot_module_t *modules =
+        (const multiboot_module_t *)(uintptr_t)modules_address;
+    for (uint32_t i = 0; i < module_count; i++) {
+        const multiboot_module_t *module = &modules[i];
+        if (module->command_line == 0 || module->end <= module->start) {
+            continue;
+        }
+
+        const char *name = (const char *)(uintptr_t)module->command_line;
+        /* GRUB puts the text after `module <file>` in this module's name field. */
+        if (strcmp(name, "mydos-install") == 0) {
+            *payload = (const uint8_t *)(uintptr_t)module->start;
+            *payload_size = module->end - module->start;
+            return 1;
+        }
+    }
+
+    return 0;
+}
 
 void scrl(int *cursor_y);
 
@@ -80,17 +142,25 @@ static void help_command_header(const char *command, int *cursor_y) {
 }
 
 void KernelEntryPoint(unsigned int magic, unsigned int mbi) {
-    (void)magic;
-    (void)mbi;
-
-    // Direct boot-time test for kernel panic (remove or comment out when done testing):
-    // panic("Fatal exception: system integrity verification failed");
-
     gdt_init();
     idt_init();
+    fpu_init();
     keyboard_load_layout("de");
 
     clear_screen();
+
+    /* Keep installer startup separate so it never triggers the shell's auto-format prompt. */
+    if (multiboot_installer_requested(magic, mbi)) {
+        const uint8_t *payload = 0;
+        uint32_t payload_size = 0;
+        if (!multiboot_find_installer_payload(mbi, &payload, &payload_size)) {
+            installer_main(0, 0);
+        } else {
+            installer_main(payload, payload_size);
+        }
+        return;
+    }
+
     print_logo();
 
     int cursor_y = 13;
@@ -144,11 +214,12 @@ void KernelEntryPoint(unsigned int magic, unsigned int mbi) {
 
     uptime = rtcts(hr, min, sec);
 
-    print("Welcome and thank you for trying out MyDOS!", WHITE, 0, 7);
+    print("Thank you for trying out MyDOS!", WHITE, 0, 7);
     print("Keep in mind that it is still in beta, so there will not be many features", WHITE, 0, 8);
     print("and there might be bugs. If you can, check out my GitHub repository at: ", WHITE, 0, 9);
     print("---https://github.com/Avianca17/MyDOS---", GREEN, 0, 10);
     print("That's all from me! Type 'help' to see available commands.", WHITE, 0, 11);
+
     while (1) {
         char c = keyboard_getchar();
 
@@ -196,13 +267,13 @@ void KernelEntryPoint(unsigned int magic, unsigned int mbi) {
                     help_row("|   loadkeys        date           uptime          fetch                   |", LIGHT_GREY, &cursor_y);
                     help_row("|   shlogo          beep                                                   |", LIGHT_GREY, &cursor_y);
                     help_row("|                                                                          |", WHITE, &cursor_y);
-                    help_row("| [ SYSTEM AND DEBUGGING ]                                                 |", LIGHT_CYAN, &cursor_y);
-                    help_row("|   rbt             shtdwn           fault                                 |", LIGHT_GREY, &cursor_y);
+                    help_row("| [ POWER ]                                                                |", LIGHT_CYAN, &cursor_y);
+                    help_row("|   rbt             shtdwn                                                 |", LIGHT_GREY, &cursor_y);
                     help_row("|                                                                          |", WHITE, &cursor_y);
                     help_row("| [ FILESYSTEM ]                                                           |", LIGHT_GREEN, &cursor_y);
                     help_row("|   mkdir           mkfile          ls             lsdrv                   |", LIGHT_GREY, &cursor_y);
                     help_row("|   rm              cd              myeditor       pwd                     |", LIGHT_GREY, &cursor_y);
-                    help_row("|   cat                                                                    |", LIGHT_GREY, &cursor_y);
+                    help_row("|   cat             cp              mv             calc                    |", LIGHT_GREY, &cursor_y);
                     help_row("|                                                                          |", WHITE, &cursor_y);
                     help_row("| TIP: Try typing 'help echo'                                              |", YELLOW, &cursor_y);
                     help_row("+--------------------------------------------------------------------------+", BLUE, &cursor_y);
@@ -276,15 +347,10 @@ void KernelEntryPoint(unsigned int magic, unsigned int mbi) {
                           "your machine.",
                           LIGHT_GREY, 0, cursor_y);
 
-                } else if (strcmp(args, "fault") == 0) {
-                    print("Usage: fault <zero|ud>", WHITE, 0, cursor_y);
-                    scrl(&cursor_y);
-                    print("Executes real CPU faulting instructions (Divide-by-zero or UD2).", LIGHT_GREY, 0, cursor_y);
-
                 } else if (strcmp(args, "beep") == 0) {
                     print("Usage: beep", WHITE, 0, cursor_y);
                     scrl(&cursor_y);
-                    print("Play a short tone through the legacy PC speaker.",
+                    print("Play a short tone (This won't work on a lot of VM's/PC's).",
                           LIGHT_GREY, 0, cursor_y);
 
                 } else if (strcmp(args, "help") == 0) {
@@ -304,7 +370,7 @@ void KernelEntryPoint(unsigned int magic, unsigned int mbi) {
                 } else if (strcmp(args, "fetch") == 0) {
                     print("Usage: fetch", WHITE, 0, cursor_y);
                     scrl(&cursor_y);
-                    print("Displays system information and uptime beside the MyDOS logo.", LIGHT_GREY, 0, cursor_y);
+                    print("Basically fastfetch on Linux/Windows/macOS/BSD, but for MyDOS.", LIGHT_GREY, 0, cursor_y);
 
                 } else if (strcmp(args, "mkfile") == 0) {
                     print("Usage: mkfile [FILENAME.EXTENSION]", WHITE, 0, cursor_y);
@@ -313,10 +379,21 @@ void KernelEntryPoint(unsigned int magic, unsigned int mbi) {
                           "current working directory.",
                           LIGHT_GREY, 0, cursor_y);
 
-                } else if (strcmp(args, "ls") == 0) {
-                    print("Usage: ls", WHITE, 0, cursor_y);
+                } else if (strcmp(args, "cp") == 0) {
+                    print("Usage: cp <source> <destination>", WHITE, 0, cursor_y);
                     scrl(&cursor_y);
-                    print("Lists files in the current directory.", LIGHT_GREY, 0, cursor_y);
+                    print("Copies into directories as source filename; never overwrites.", LIGHT_GREY, 0, cursor_y);
+
+                } else if (strcmp(args, "mv") == 0) {
+                    print("Usage: mv <source> <destination>", WHITE, 0, cursor_y);
+                    scrl(&cursor_y);
+                    print("Moves or renames a file or directory; never overwrites.",
+                          LIGHT_GREY, 0, cursor_y);
+
+                } else if (strcmp(args, "ls") == 0) {
+                    print("Usage: ls [PATH]", WHITE, 0, cursor_y);
+                    scrl(&cursor_y);
+                    print("Lists files in the current directory or a specific path.", LIGHT_GREY, 0, cursor_y);
 
                 } else if (strcmp(args, "lsdrv") == 0) {
                     print("Usage: lsdrv", WHITE, 0, cursor_y);
@@ -331,11 +408,9 @@ void KernelEntryPoint(unsigned int magic, unsigned int mbi) {
                           LIGHT_GREY, 0, cursor_y);
 
                 } else if (strcmp(args, "rm") == 0) {
-                    print("Usage: rm [/PATH/TO/FILE] / [-r /PATH/TO/DIRECTORY]", WHITE, 0, cursor_y);
+                    print("Usage: rm [/PATH/TO/FILE] or  [-r /PATH/TO/DIRECTORY]", WHITE, 0, cursor_y);
                     scrl(&cursor_y);
-                    print("Deletes a file or directory. Please note that this "
-                          "is permanent!",
-                          LIGHT_GREY, 0, cursor_y);
+                    print("Permanently deletes a file or directory.", LIGHT_GREY, 0, cursor_y);
 
                 } else if (strcmp(args, "cd") == 0) {
                     print("Usage: cd /PATH/TO/DIRECTORY", WHITE, 0, cursor_y);
@@ -359,6 +434,11 @@ void KernelEntryPoint(unsigned int magic, unsigned int mbi) {
                     scrl(&cursor_y);
                     print("F1 saves, F2 opens a file, and F3 exits the editor.",
                           LIGHT_GREY, 0, cursor_y);
+                } else if (strcmp(args, "calc") == 0) {
+                    print("Usage: calc", WHITE, 0, cursor_y);
+                    scrl(&cursor_y);
+                    print("Opens the build-in calculator program.", LIGHT_GREY, 0, cursor_y);
+                    scrl(&cursor_y);
                 } else {
                     print("help: unknown command, please try again", RED, 0, cursor_y);
                 }
@@ -667,6 +747,12 @@ void KernelEntryPoint(unsigned int magic, unsigned int mbi) {
 
                     scrl(&cursor_y);
                 }
+            } else if (strcmp(cmd, "cp") == 0) {
+                cp_file(args, &cursor_y);
+                scrl(&cursor_y);
+            } else if (strcmp(cmd, "mv") == 0) {
+                mv_file(args, &cursor_y);
+                scrl(&cursor_y);
             } else if (strcmp(cmd, "rm") == 0) {
                 FILINFO fno;
                 if (args[0] == '\0') {
@@ -717,16 +803,12 @@ void KernelEntryPoint(unsigned int magic, unsigned int mbi) {
                     scrl(&cursor_y);
                 }
             } else if (strcmp(cmd, "ls") == 0) {
-                if (args[0] != '\0') {
-                    print("Usage: ls", RED, 0, cursor_y);
-                    scrl(&cursor_y);
-                } else {
-                    FRESULT result = list_files(".", &cursor_y);
+                const char *list_path = (args[0] != '\0') ? args : ".";
+                FRESULT result = list_files(list_path, &cursor_y);
 
-                    if (result != FR_OK) {
-                        print("ls: Could not list files.", RED, 0, cursor_y);
-                        scrl(&cursor_y);
-                    }
+                if (result != FR_OK) {
+                    print("ls: Could not list files.", RED, 0, cursor_y);
+                    scrl(&cursor_y);
                 }
             } else if (strcmp(cmd, "lsdrv") == 0) {
                 if (args[0] != '\0') {
@@ -763,6 +845,9 @@ void KernelEntryPoint(unsigned int magic, unsigned int mbi) {
             } else if (strcmp(cmd, "myeditor") == 0) {
                 myeditor();
                 cursor_y = 0;
+            } else if (strcmp(cmd, "calc") == 0) {
+                main_calc();
+                cursor_y = 0;
             } else if (strcmp(cmd, "pwd") == 0) {
                 FRESULT result = f_getcwd(cmd, sizeof(cmd));
                 if (result == FR_OK) {
@@ -771,20 +856,8 @@ void KernelEntryPoint(unsigned int magic, unsigned int mbi) {
                     print("pwd: Error retrieving current working directory.", RED, 0, cursor_y);
                 }
                 scrl(&cursor_y);
-            }
-            else if (strcmp(cmd, "shtdwn") == 0) {
+            } else if (strcmp(cmd, "shtdwn") == 0) {
                 shutdown();
-            } else if (strcmp(cmd, "fault") == 0) {
-                if (strcmp(args, "zero") == 0 || strcmp(args, "de") == 0) {
-                    volatile int zero = 0;
-                    volatile int x = 42 / zero;
-                    (void)x;
-                } else if (strcmp(args, "ud") == 0) {
-                    __asm__ volatile("ud2");
-                } else {
-                    print("Usage: fault <zero|ud>", RED, 0, cursor_y);
-                    scrl(&cursor_y);
-                }
             } else if (strcmp(cmd, "rbt") == 0) {
                 __asm__ volatile("movb $0xFE, %%al\n\t"
                                  "outb %%al, $0x64\n\t"

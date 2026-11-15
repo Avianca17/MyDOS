@@ -5896,6 +5896,7 @@ FRESULT f_forward (
 /*-----------------------------------------------------------------------*/
 
 #define N_SEC_TRACK 63			/* Sectors per track for determination of drive CHS */
+#define MBR_PARTITION_START 2048	/* Leave a 1 MiB embedding gap for BIOS GRUB core.img */
 #define	GPT_ALIGN	0x100000	/* Alignment of partitions in GPT [byte] (>=128KB) */
 #define GPT_ITEMS	128			/* Number of GPT table items (>=128, sector aligned) */
 
@@ -6009,7 +6010,8 @@ static FRESULT create_partition (
 
 		memset(buf, 0, FF_MAX_SS);		/* Clear MBR */
 		pte = buf + MBR_Table;	/* Partition table in the MBR */
-		for (i = 0, nxt_alloc32 = n_sc; i < 4 && nxt_alloc32 != 0 && nxt_alloc32 < sz_drv32; i++, nxt_alloc32 += sz_part32) {
+		/* Match the partition-table start to the aligned FAT volume start. */
+		for (i = 0, nxt_alloc32 = MBR_PARTITION_START; i < 4 && nxt_alloc32 != 0 && nxt_alloc32 < sz_drv32; i++, nxt_alloc32 += sz_part32) {
 			sz_part32 = (DWORD)plst[i];	/* Get partition size */
 			if (sz_part32 <= 100) sz_part32 = (sz_part32 == 100) ? sz_drv32 : sz_drv32 / 100 * sz_part32;	/* Size in percentage? */
 			if (nxt_alloc32 + sz_part32 > sz_drv32 || nxt_alloc32 + sz_part32 < nxt_alloc32) sz_part32 = sz_drv32 - nxt_alloc32;	/* Clip at drive size */
@@ -6156,8 +6158,9 @@ FRESULT f_mkfs (
 			} else
 #endif
 			{	/* Partitioning is in MBR */
-				if (sz_vol > N_SEC_TRACK) {
-					b_vol = N_SEC_TRACK; sz_vol -= b_vol;	/* Estimated partition offset and size */
+				if (sz_vol > MBR_PARTITION_START) {
+					/* Keep the MBR gap large enough for the embedded BIOS loader. */
+					b_vol = MBR_PARTITION_START; sz_vol -= b_vol;	/* Estimated partition offset and size */
 				}
 			}
 		}

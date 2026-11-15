@@ -1,4 +1,4 @@
-#include "string.h"
+#include <mydos.h>
 
 int strlen(const char* s) {
     int len = 0;

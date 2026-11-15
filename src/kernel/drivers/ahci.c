@@ -1,5 +1,4 @@
-#include "ahci.h"
-
+#include <mydos.h>
 #include <stddef.h>
 
 #define PCI_CONFIG_ADDRESS 0xCF8

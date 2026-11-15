@@ -1,5 +1,4 @@
-#include "helpers.h"
-#include "kernel.h" // For the color definitions, thats it
+#include <mydos.h>
 
 unsigned int rtcts(unsigned char hour, unsigned char minute, unsigned char second) {
     return (hour * 3600u) + (minute * 60u) + second;

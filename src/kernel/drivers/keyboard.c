@@ -1,6 +1,5 @@
 #include <stddef.h>
-#include "keyboard.h"
-#include "../../lib/string.h"
+#include <mydos.h>
 
 #define KEYBOARD_DATA_PORT   0x60
 #define KEYBOARD_STATUS_PORT 0x64
@@ -240,15 +239,15 @@ static int shift_pressed = 0;
 static int altgr_pressed = 0;
 static int extended_scancode = 0;
 
-unsigned char inb(unsigned short port) {
+unsigned char io_inb(unsigned short port) {
     unsigned char value;
     __asm__ volatile ("inb %1, %0" : "=a"(value) : "Nd"(port));
     return value;
 }
 
 char keyboard_getchar(void) {
-    if (inb(KEYBOARD_STATUS_PORT) & 0x01) {
-        unsigned char scancode = inb(KEYBOARD_DATA_PORT);
+    if (io_inb(KEYBOARD_STATUS_PORT) & 0x01) {
+        unsigned char scancode = io_inb(KEYBOARD_DATA_PORT);
 
         if (scancode == 0xE0) {
             extended_scancode = 1;

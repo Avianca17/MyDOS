@@ -30,6 +30,8 @@ Filesystem:
 - ls
 - lsdrv
 - mkfile <filename>
+- cp <source> <destination>
+- mv <source> <destination>
 - mkdir <dirname>
 - rm [-r] <path>
 - cd /PATH/TO/DIRECTORY
@@ -41,6 +43,21 @@ System:
 - rbt
 - shtdwn
 - fault <zero|ud>
+
+## Installing to a disk
+
+Boot the ISO's **Boot MyDOS Installer** menu entry, then run:
+
+```text
+lsdrv
+mkfat -f 32 0:/
+mydos-strap 0:/
+rbt
+```
+
+Replace `0:/` with the drive listed by `lsdrv`. `mkfat` erases and formats the
+selected drive as FAT32. After `mydos-strap` succeeds, remove the installer
+media before rebooting.
 
 ## Requirements
 

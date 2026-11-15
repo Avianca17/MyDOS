@@ -1,8 +1,4 @@
-#include "myeditor.h"
-#include "kernel.h"
-#include "../../kernel/drivers/keyboard.h"
-#include "../../fs/fatfs/source/ff.h"
-#include "../../kernel/drivers/vga.h"
+#include <mydos.h>
 
 #define EDITOR_ROWS 21
 #define EDITOR_COLUMNS 78

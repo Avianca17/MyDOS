@@ -1,8 +1,5 @@
-#include "fshelpers.h"
-#include "../../../fs/fatfs/source/ff.h"
+#include <mydos.h>
 #include "../../../fs/fatfs/source/diskio.h"
-#include "../../drivers/vga.h"
-#include "../../kernel.h"
 
 static FATFS fs[FF_VOLUMES];
 static BYTE format_work[FF_MAX_SS * 4];
@@ -52,6 +49,16 @@ FRESULT fs_init(void) {
 }
 
 FRESULT fs_format(void) {
+    return fs_format_volume(active_volume);
+}
+
+/* Format one FatFs volume / physical disk, then mount it as the active drive. */
+FRESULT fs_format_volume(BYTE volume) {
+    if (volume >= FF_VOLUMES) {
+        return FR_INVALID_DRIVE;
+    }
+
+    /* FM_FAT32 without FM_SFD creates the FAT32 partition table as well. */
     MKFS_PARM options = {
         .fmt = FM_FAT32,
         .n_fat = 1,
@@ -60,17 +67,22 @@ FRESULT fs_format(void) {
         .au_size = 0
     };
 
-    TCHAR path[3] = { '0' + active_volume, ':', '\0' };
+    TCHAR path[3] = { '0' + volume, ':', '\0' };
     FRESULT result = f_mkfs(path, &options, format_work, sizeof(format_work));
     if (result != FR_OK) {
         return result;
     }
 
-    result = f_mount(&fs[active_volume], path, 1);
+    result = f_mount(&fs[volume], path, 1);
     if (result != FR_OK) {
         return result;
     }
-    return f_chdrive(path);
+
+    result = f_chdrive(path);
+    if (result == FR_OK) {
+        active_volume = volume;
+    }
+    return result;
 }
 
 FRESULT make_file(const TCHAR* path) {
@@ -83,6 +95,222 @@ FRESULT make_file(const TCHAR* path) {
 
     return f_close(&file);
 }
+
+static FRESULT resolve_destination_path(const TCHAR *source_path, const TCHAR *destination_path, char *resolved_path, unsigned int resolved_path_size, const TCHAR **effective_destination) {
+    FILINFO destination_info;
+    FRESULT result = f_stat(destination_path, &destination_info);
+    if (result != FR_OK && result != FR_NO_FILE && result != FR_NO_PATH) {
+        return result;
+    }
+
+    *effective_destination = destination_path;
+    if (result != FR_OK || !(destination_info.fattrib & AM_DIR)) {
+        return FR_OK;
+    }
+
+    const char *filename = source_path;
+    for (const char *p = source_path; *p != '\0'; p++) {
+        if (*p == '/' || *p == '\\') {
+            filename = p + 1;
+        }
+    }
+
+    int destination_length = strlen(destination_path);
+    int filename_length = strlen(filename);
+    int needs_separator = destination_length > 0 &&
+                          destination_path[destination_length - 1] != '/' &&
+                          destination_path[destination_length - 1] != '\\';
+    int total_length = destination_length + needs_separator + filename_length;
+    if (filename_length == 0 || total_length >= (int)resolved_path_size) {
+        return FR_INVALID_NAME;
+    }
+
+    memcpy(resolved_path, destination_path, destination_length);
+    int position = destination_length;
+    if (needs_separator) {
+        resolved_path[position++] = '/';
+    }
+    memcpy(resolved_path + position, filename, filename_length + 1);
+    *effective_destination = resolved_path;
+    return FR_OK;
+}
+
+FRESULT copy_file(const TCHAR *source_path, const TCHAR *destination_path) {
+    FILINFO source_info;
+    FRESULT result = f_stat(source_path, &source_info);
+    if (result != FR_OK) {
+        return result;
+    }
+    if (source_info.fattrib & AM_DIR) {
+        return FR_DENIED;
+    }
+
+    char resolved_destination[280];
+    const TCHAR *effective_destination;
+    result = resolve_destination_path(source_path, destination_path, resolved_destination, sizeof(resolved_destination), &effective_destination);
+    if (result != FR_OK) {
+        return result;
+    }
+
+    FIL source;
+    result = f_open(&source, source_path, FA_READ);
+    if (result != FR_OK) {
+        return result;
+    }
+
+    FIL destination;
+    result = f_open(&destination, effective_destination, FA_CREATE_NEW | FA_WRITE);
+    if (result != FR_OK) {
+        f_close(&source);
+        return result;
+    }
+
+    BYTE buffer[512];
+    UINT bytes_read;
+    do {
+        result = f_read(&source, buffer, sizeof(buffer), &bytes_read);
+        if (result != FR_OK || bytes_read == 0) {
+            break;
+        }
+
+        UINT bytes_written;
+        result = f_write(&destination, buffer, bytes_read, &bytes_written);
+        if (result == FR_OK && bytes_written != bytes_read) {
+            result = FR_DISK_ERR;
+        }
+    } while (result == FR_OK);
+
+    FRESULT close_result = f_close(&destination);
+    if (result == FR_OK) {
+        result = close_result;
+    }
+
+    close_result = f_close(&source);
+    if (result == FR_OK) {
+        result = close_result;
+    }
+
+    if (result != FR_OK) {
+        FRESULT cleanup_result = f_unlink(effective_destination);
+        if (cleanup_result != FR_OK && cleanup_result != FR_NO_FILE) {
+            return cleanup_result;
+        }
+    }
+
+    return result;
+}
+
+static int parse_two_paths(char *args, char **source, char **destination) {
+    *source = args;
+    while (**source == ' ') {
+        (*source)++;
+    }
+
+    char *separator = *source;
+    while (*separator != '\0' && *separator != ' ') {
+        separator++;
+    }
+    if (*separator == '\0') {
+        return 0;
+    }
+
+    *separator++ = '\0';
+    while (*separator == ' ') {
+        separator++;
+    }
+    if (*separator == '\0') {
+        return 0;
+    }
+
+    *destination = separator;
+    while (*separator != '\0' && *separator != ' ') {
+        separator++;
+    }
+    if (*separator != '\0') {
+        *separator++ = '\0';
+        while (*separator == ' ') {
+            separator++;
+        }
+        if (*separator != '\0') {
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
+void cp_file(char *args, int *cursor_y) {
+    char *source;
+    char *destination;
+    if (!parse_two_paths(args, &source, &destination)) {
+        print("Usage: cp <source> <destination>", RED, 0, *cursor_y);
+        return;
+    }
+
+    FRESULT result = copy_file(source, destination);
+    if (result == FR_OK) {
+        print("cp: File copied.", GREEN, 0, *cursor_y);
+    } else if (result == FR_NO_FILE || result == FR_NO_PATH) {
+        print("cp: Source file not found.", RED, 0, *cursor_y);
+    } else if (result == FR_EXIST) {
+        print("cp: Destination already exists.", RED, 0, *cursor_y);
+    } else {
+        print("cp: Could not copy file.", RED, 0, *cursor_y);
+    }
+}
+
+FRESULT move_path(const TCHAR *source_path, const TCHAR *destination_path) {
+    FILINFO source_info;
+    FRESULT result = f_stat(source_path, &source_info);
+    if (result != FR_OK) {
+        return result;
+    }
+
+    char resolved_destination[280];
+    const TCHAR *effective_destination;
+    result = resolve_destination_path(source_path, destination_path, resolved_destination, sizeof(resolved_destination), &effective_destination);
+    if (result != FR_OK) {
+        return result;
+    }
+
+    if (source_info.fattrib & AM_DIR) {
+        int source_length = strlen(source_path);
+        int destination_length = strlen(effective_destination);
+        if (destination_length > source_length &&
+            strncmp(effective_destination, source_path, source_length) == 0 &&
+            (source_path[source_length - 1] == '/' ||
+             source_path[source_length - 1] == '\\' ||
+             effective_destination[source_length] == '/' ||
+             effective_destination[source_length] == '\\')) {
+            return FR_DENIED;
+        }
+    }
+
+    return f_rename(source_path, effective_destination);
+}
+
+void mv_file(char *args, int *cursor_y) {
+    char *source;
+    char *destination;
+    if (!parse_two_paths(args, &source, &destination)) {
+        print("Usage: mv <source> <destination>", RED, 0, *cursor_y);
+        return;
+    }
+
+    FRESULT result = move_path(source, destination);
+    if (result == FR_OK) {
+        print("mv: Path moved.", GREEN, 0, *cursor_y);
+    } else if (result == FR_NO_FILE || result == FR_NO_PATH) {
+        print("mv: Source path not found.", RED, 0, *cursor_y);
+    } else if (result == FR_EXIST) {
+        print("mv: Destination already exists.", RED, 0, *cursor_y);
+    } else if (result == FR_DENIED) {
+        print("mv: Cannot move a directory into itself.", RED, 0, *cursor_y);
+    } else {
+        print("mv: Could not move path.", RED, 0, *cursor_y);
+    }
+}
+
 FRESULT make_dir(const TCHAR* path) {
     return f_mkdir(path);
 }

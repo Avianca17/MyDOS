@@ -1,5 +1,4 @@
-#include "kernel.h"
-#include "hardware.h"
+#include <mydos.h>
 #include <stdint.h>
 
 void cpuid_vendor(char out[13]) {

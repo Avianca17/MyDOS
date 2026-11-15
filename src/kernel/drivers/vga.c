@@ -1,5 +1,4 @@
-#include "kernel.h"
-#include "vga.h"
+#include <mydos.h>
 
 static unsigned char theme_text = WHITE;
 static unsigned char theme_muted = LIGHT_GREY;

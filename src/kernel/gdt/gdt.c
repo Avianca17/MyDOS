@@ -1,4 +1,4 @@
-#include "gdt.h"
+#include <mydos.h>
 
 static gdt_entry_t gdt_entries[3];
 static gdt_ptr_t   gdt_ptr;

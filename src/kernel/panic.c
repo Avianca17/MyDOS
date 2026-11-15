@@ -1,8 +1,4 @@
-#include "panic.h"
-#include "kernel.h"
-#include "drivers/vga.h"
-#include "drivers/pc_speaker.h"
-#include "lib/string.h"
+#include <mydos.h>
 
 static const char* const exclamation_pattern[] = {
     "####",

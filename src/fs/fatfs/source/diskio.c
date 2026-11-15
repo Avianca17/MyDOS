@@ -1,6 +1,6 @@
 #include "ff.h"
 #include "diskio.h"
-#include "kernel/drivers/ahci.h"
+#include <mydos.h>
 
 #define ATA_PRIMARY_IO 0x1F0
 #define ATA_PRIMARY_CONTROL 0x3F6

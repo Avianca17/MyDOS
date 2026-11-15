@@ -1,6 +1,4 @@
-#include "idt.h"
-#include "../panic.h"
-#include "../../lib/string.h"
+#include <mydos.h>
 
 extern void idt_flush(unsigned int);
 
@@ -55,16 +53,16 @@ void idt_init(void) {
     memset(idt_entries, 0, sizeof(idt_entry_t) * 256);
 
     // Populate CPU exception handlers 0 to 31 (0x08 = Kernel Code Segment, 0x8E = 32-bit Interrupt Gate)
-    idt_set_gate(0,  (unsigned int)isr0,  0x08, 0x8E);
-    idt_set_gate(1,  (unsigned int)isr1,  0x08, 0x8E);
-    idt_set_gate(2,  (unsigned int)isr2,  0x08, 0x8E);
-    idt_set_gate(3,  (unsigned int)isr3,  0x08, 0x8E);
-    idt_set_gate(4,  (unsigned int)isr4,  0x08, 0x8E);
-    idt_set_gate(5,  (unsigned int)isr5,  0x08, 0x8E);
-    idt_set_gate(6,  (unsigned int)isr6,  0x08, 0x8E);
-    idt_set_gate(7,  (unsigned int)isr7,  0x08, 0x8E);
-    idt_set_gate(8,  (unsigned int)isr8,  0x08, 0x8E);
-    idt_set_gate(9,  (unsigned int)isr9,  0x08, 0x8E);
+    idt_set_gate(0, (unsigned int)isr0,  0x08, 0x8E);
+    idt_set_gate(1, (unsigned int)isr1,  0x08, 0x8E);
+    idt_set_gate(2, (unsigned int)isr2,  0x08, 0x8E);
+    idt_set_gate(3, (unsigned int)isr3,  0x08, 0x8E);
+    idt_set_gate(4, (unsigned int)isr4,  0x08, 0x8E);
+    idt_set_gate(5, (unsigned int)isr5,  0x08, 0x8E);
+    idt_set_gate(6, (unsigned int)isr6,  0x08, 0x8E);
+    idt_set_gate(7, (unsigned int)isr7,  0x08, 0x8E);
+    idt_set_gate(8, (unsigned int)isr8,  0x08, 0x8E);
+    idt_set_gate(9, (unsigned int)isr9,  0x08, 0x8E);
     idt_set_gate(10, (unsigned int)isr10, 0x08, 0x8E);
     idt_set_gate(11, (unsigned int)isr11, 0x08, 0x8E);
     idt_set_gate(12, (unsigned int)isr12, 0x08, 0x8E);

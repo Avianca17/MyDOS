@@ -24,7 +24,7 @@ section .text
 		jmp .halt_after_kernel
 
 section .rodata
-	boot_message db 'MyDOS bootloader started', 0 ; Please ignore this as it won't appear anywhere and I don't want to remove it.
+	boot_message db 'Hello!', 0
 
 section .bss
 	align 16
