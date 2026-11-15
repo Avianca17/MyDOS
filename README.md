@@ -22,7 +22,6 @@ Shell:
 - loadkeys <us|de|fr>
 - date [-t|--time] [-d|--date] [-12|--12h]
 - uptime [-p|--pretty] [-s|--seconds]
-- sysinfo
 - fetch
 - shlogo
 
