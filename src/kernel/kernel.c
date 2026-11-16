@@ -272,7 +272,7 @@ void KernelEntryPoint(unsigned int magic, unsigned int mbi) {
                     help_row("|   rm              cd              pwd            mkfat32                 |", LIGHT_GREY, &cursor_y);
                     help_row("|   cat             cp              mv                                     |", LIGHT_GREY, &cursor_y);
                     help_row("| [ PROGRAMS]                                                              |", RED, &cursor_y);
-                    help_row("|   myeditor        calc                                                   | ", LIGHT_GREY, &cursor_y)
+                    help_row("|   myeditor        calc                                                   | ", LIGHT_GREY, &cursor_y);
                     help_row("+--------------------------------------------------------------------------+", BLUE, &cursor_y);
 
                 } else if (strcmp(args, "date") == 0) {
