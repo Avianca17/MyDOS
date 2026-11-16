@@ -5,6 +5,8 @@ static FATFS fs[FF_VOLUMES];
 static BYTE format_work[FF_MAX_SS * 4];
 static BYTE active_volume;
 
+FRESULT mkfat32(void) { return fs_format(); }
+
 FRESULT fs_init(void) {
     FRESULT first_error = FR_NO_FILESYSTEM;
     int mounted_volume = -1;
