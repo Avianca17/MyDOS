@@ -261,21 +261,18 @@ void KernelEntryPoint(unsigned int magic, unsigned int mbi) {
                     help_row("|                           MYDOS COMMAND CENTRE                           |", GREEN, &cursor_y);
                     help_row("+--------------------------------------------------------------------------+", BLUE, &cursor_y);
                     help_row("| Want to know what a command does? Just type help <cmd>!                  |", WHITE, &cursor_y);
-                    help_row("|                                                                          |", WHITE, &cursor_y);
                     help_row("| [ SHELL ]                                                                |", YELLOW, &cursor_y);
                     help_row("|   help            clear           echo           change-theme            |", LIGHT_GREY, &cursor_y);
                     help_row("|   loadkeys        date           uptime          fetch                   |", LIGHT_GREY, &cursor_y);
                     help_row("|   shlogo          beep                                                   |", LIGHT_GREY, &cursor_y);
-                    help_row("|                                                                          |", WHITE, &cursor_y);
                     help_row("| [ POWER ]                                                                |", LIGHT_CYAN, &cursor_y);
-                    help_row("|   rbt             shtdwn                                                 |", LIGHT_GREY, &cursor_y);
-                    help_row("|                                                                          |", WHITE, &cursor_y);
+                    help_row("|   rbt             shtdwn                                                 |", LIGHT_GREY, &cursor_y);;
                     help_row("| [ FILESYSTEM ]                                                           |", LIGHT_GREEN, &cursor_y);
                     help_row("|   mkdir           mkfile          ls             lsdrv                   |", LIGHT_GREY, &cursor_y);
-                    help_row("|   rm              cd              myeditor       pwd                     |", LIGHT_GREY, &cursor_y);
-                    help_row("|   cat             cp              mv             calc                    |", LIGHT_GREY, &cursor_y);
-                    help_row("|                                                                          |", WHITE, &cursor_y);
-                    help_row("| TIP: Try typing 'help echo'                                              |", YELLOW, &cursor_y);
+                    help_row("|   rm              cd              pwd            mkfat32                 |", LIGHT_GREY, &cursor_y);
+                    help_row("|   cat             cp              mv                                     |", LIGHT_GREY, &cursor_y);
+                    help_row("| [ PROGRAMS]                                                              |", RED, &cursor_y);
+                    help_row("|   myeditor        calc                                                   | ", LIGHT_GREY, &cursor_y)
                     help_row("+--------------------------------------------------------------------------+", BLUE, &cursor_y);
 
                 } else if (strcmp(args, "date") == 0) {
@@ -439,7 +436,11 @@ void KernelEntryPoint(unsigned int magic, unsigned int mbi) {
                     scrl(&cursor_y);
                     print("Opens the build-in calculator program.", LIGHT_GREY, 0, cursor_y);
                     scrl(&cursor_y);
-                } else {
+                } else if (strcmp(args, "mkfat32") == 0) {
+                    print("Usage: mkfat32 <disk_number>:/", WHITE, 0, cursor_y); scrl(&cursor_y);
+                    print("Formats the selected disk to FAT32", LIGHT_GREY,0, cursor_y);
+                }
+                else {
                     print("help: unknown command, please try again", RED, 0, cursor_y);
                 }
                 scrl(&cursor_y);
@@ -856,7 +857,12 @@ void KernelEntryPoint(unsigned int magic, unsigned int mbi) {
                     print("pwd: Error retrieving current working directory.", RED, 0, cursor_y);
                 }
                 scrl(&cursor_y);
-            } else if (strcmp(cmd, "shtdwn") == 0) {
+            } else if (strcmp(cmd, "mkfat32") == 0) {
+                if (args[0] == '\0') {
+                    print("Usage: mkfat32 <disk_number>:/", RED, 0, cursor_y); scrl(&cursor_y);
+                } // For now its just this ill update later
+            } 
+            else if (strcmp(cmd, "shtdwn") == 0) {
                 shutdown();
             } else if (strcmp(cmd, "rbt") == 0) {
                 __asm__ volatile("movb $0xFE, %%al\n\t"
