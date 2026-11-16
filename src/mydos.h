@@ -64,6 +64,7 @@ FRESULT make_dir(const TCHAR *path);
 void list_drives(int *cursor_y);
 FRESULT rm_recursive(const TCHAR *path);
 FRESULT cat_file(const TCHAR *path, int *cursor_y);
+FRESULT mkfat32(void);
 
 unsigned int rtcts(unsigned char hour, unsigned char minute,
                    unsigned char second);
