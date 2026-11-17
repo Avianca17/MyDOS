@@ -1,25 +1,32 @@
 #include <mydos.h>
 
 static void ui_calc_border(int y) {
-    print("================================================================================", BLUE, 0, y);
+    char border[VGA_MAX_WIDTH + 1];
+    int width = vga_screen_width();
+    for (int i = 0; i < width; i++) {
+        border[i] = '=';
+    }
+    border[width] = '\0';
+    print(border, BLUE, 0, y);
 }
 
 static void ui_calc_row(int y, const char *text, unsigned char color) {
-    char row[77];
+    char row[VGA_MAX_WIDTH - 3];
+    int width = vga_screen_width() - 4;
     int i = 0;
 
-    while (i < 76 && text[i] != '\0') {
+    while (i < width && text[i] != '\0') {
         row[i] = text[i];
         i++;
     }
-    while (i < 76) {
+    while (i < width) {
         row[i++] = ' ';
     }
-    row[76] = '\0';
+    row[width] = '\0';
 
     print("||", LIGHT_CYAN, 0, y);
     print(row, color, 2, y);
-    print("||", LIGHT_CYAN, 78, y);
+    print("||", LIGHT_CYAN, vga_screen_width() - 2, y);
 }
 
 void ui_calc(void) {
@@ -32,10 +39,10 @@ void ui_calc(void) {
     ui_calc_border(4);
 
     ui_calc_row(5, " > ", WHITE);
-    for (int y = 6; y < 24; y++) {
+    for (int y = 6; y < vga_screen_height() - 1; y++) {
         ui_calc_row(y, "", LIGHT_GREY);
     }
-    ui_calc_border(24);
+    ui_calc_border(vga_screen_height() - 1);
     move_cursor(5, 5);
 }
 
@@ -324,14 +331,10 @@ static void show_evaluation(const char *input, int input_y) {
 }
 
 static void scroll_calc_history(void) {
-    volatile unsigned short *vga = (volatile unsigned short *)VGA_ADDRESS;
-    for (int y = 5; y <= 21; y++) {
-        for (int x = 0; x < VGA_WIDTH; x++) {
-            vga[y * VGA_WIDTH + x] = vga[(y + 2) * VGA_WIDTH + x];
-        }
-    }
-    ui_calc_row(22, "", LIGHT_GREY);
-    ui_calc_row(23, "", LIGHT_GREY);
+    int last_input_row = vga_screen_height() - 2;
+    scroll_screen_region(5, last_input_row, 2);
+    ui_calc_row(last_input_row - 1, "", LIGHT_GREY);
+    ui_calc_row(last_input_row, "", LIGHT_GREY);
 }
 
 void main_calc(void) {
@@ -357,7 +360,7 @@ void main_calc(void) {
             }
         } else if (key == '\n' || key == '\r') {
             if (length > 0) {
-                if (input_y >= 23) {
+                if (input_y >= vga_screen_height() - 2) {
                     scroll_calc_history();
                     input_y -= 2;
                 }

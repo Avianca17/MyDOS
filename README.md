@@ -1,51 +1,69 @@
 # MyDOS
 
-MyDOS is a small 32-bit x86 hobby operating system written in C and assembly. It boots with GRUB and runs in QEMU.
+MyDOS is my own 32-bit x86 hobby OS inspired by FreeDOS and the Linux kernel written in C and
+assembly. It boots through Limine using the Multiboot 1 protocol. The hybrid ISO
+supports both Legacy BIOS and UEFI! It runs great on QEMU, VirtualBox, VMware and 86Box.
+I have not tested it on real hardware yet, so I doubt it boots :/ 
 
-## What it includes
+![MyDOS running in VirtualBox](image-2.png)
 
-- Bare-metal kernel
-- FAT32 filesystem support
-- ATA/IDE and AHCI SATA support
-- Simple shell
-- Basic text editor
-- Kernel Panics (NEW)
+## Features
 
-## Commands
+- Custom kernel 
+- VGA text console and Multiboot framebuffer console, with a Spleen bitmap font 
+- Keyboard-only shell with US, German, and French layouts
+- FatFs filesystem support, with FAT32 formatting as the main option but theres FAT12/FAT16 too.
+- ATA/IDE and AHCI SATA disk access
+- Built-in text editor and calculator
+- Live installer that copies MyDOS and Limine boot files to a disk (I am very proud of this one!)
+
+## Boot options
+
+- **Boot LiveCD** starts the regular MyDOS shell for you to try out.
+- **Boot Installer** starts the installer shell with the installation package
+  loaded from the ISO.
+
+The console uses a framebuffer (128x48 text grid at 1024x768) if supported by the bootloader, otherwise it falls back to 80x25 VGA text mode. The font's BSD-2-Clause license is included in the ISO and system.
+
+## Shell commands
+
+Run `help` in MyDOS for the built-in command list, or `help <command>` for
+command-specific help.
 
 Shell:
-- help [command]
-- beep
-- clear [-dl|--draw-logo]
-- echo [-c <color>|--color <color>] <text>
-- change-theme <default|matrix|ocean|sunset>
-- loadkeys <us|de|fr>
-- date [-t|--time] [-d|--date] [-12|--12h]
-- uptime [-p|--pretty] [-s|--seconds]
-- fetch
-- shlogo
 
-Filesystem:
-- ls
-- lsdrv
-- mkfile <filename>
-- cp <source> <destination>
-- mv <source> <destination>
-- mkdir <dirname>
-- rm [-r] <path>
-- cd /PATH/TO/DIRECTORY
-- cat <filename>
-- myeditor
-- pwd
+- `help [command]`
+- `clear [-dl|--draw-logo]`
+- `echo [-c <color>|--color <color>] <text>`
+- `change-theme <default|matrix|ocean|sunset>`
+- `loadkeys <us|de|fr|status>` (the main layout is German because thats my layout!)
+- `date [-t|--time] [-d|--date] [-12|--12h]`
+- `uptime [-p|--pretty] [-s|--seconds]`
+- `fetch`, `shlogo`, `larry`, `beep`
+
+Files and disks:
+
+- `ls [path]`, `cd <path>`, `pwd`, `read <filename>`
+- `mkfile <filename>`, `mkdir <dirname>`, `rm [-r|--recursive] <path>`
+- `cp <source> <destination>`, `mv <source> <destination>`
+- `lsdrv`
+- `mkfat -f <12|16|32> <drive>:/`
+- `myeditor`, `calc`
 
 System:
-- rbt
-- shtdwn
-- fault <zero|ud>
+
+- `rbt` reboots; `shtdwn` halts the CPU (a VM may not power off)
+- `kp` deliberately triggers a kernel panic for testing
 
 ## Installing to a disk
 
-Boot the ISO's **Boot MyDOS Installer** menu entry, then run:
+Choose **Boot Installer** from the Limine menu. The installer provides 
+`help`, `clear`, `lsdrv`, `mkfat`,
+`mydos-strap`, `rbt`, and `shtdwn`.
+
+The target needs an MBR partition table with a FAT32 first partition starting
+at or after LBA 63. The installer does not create partitions and does not
+support GPT targets. Prepare the partition table before installing, then use:
 
 ```text
 lsdrv
@@ -54,42 +72,93 @@ mydos-strap 0:/
 rbt
 ```
 
-Replace `0:/` with the drive listed by `lsdrv`. `mkfat` erases and formats the
-selected drive as FAT32. After `mydos-strap` succeeds, remove the installer
-media before rebooting.
-
-## Requirements
-
-- gcc
-- nasm
-- ld
-- grub-mkrescue
-- xorriso
-- qemu-system-i386
+Replace `0:/` with the target drive shown by `lsdrv`. `mkfat` erases and formats
+the selected drive/volume. Verify the drive number before running it and use a
+disposable disk or back up its contents. `mydos-strap` requires FAT32; it copies
+MyDOS and Limine files and installs BIOS boot code. After it succeeds, remove
+the installer media and reboot.
 
 ## Build
+
+Requirements:
+
+- GCC with 32-bit compilation support, GNU `make`, NASM, and GNU binutils (`ld`)
+- Limine command-line tool and its BIOS/UEFI boot files
+- `xorriso`, `tar`, and `dd`
+- QEMU (`qemu-system-i386`) to run the ISO; `qemu-img` for the optional disk
+  image example below
+
+Build the ISO file at `build/MyDOS.iso`:
 
 ```sh
 make
 ```
 
-If GRUB is not installed in the default BIOS path, set `GRUB_BIOS_DIR` before building.
+The build looks up Limine's data directory with `limine --print-datadir`. If
+needed, set `LIMINE_DATA_DIR` to the directory containing Limine's boot files:
 
-## Run
+```sh
+make LIMINE_DATA_DIR=/path/to/limine/data
+```
+
+For most people, this might be:
+```sh
+make LIMINE_DATA_DIR=/usr/share/limine
+```
+
+## Run in QEMU
 
 ```sh
 make run
 ```
 
-## Optional AHCI disk
+The regular LiveCD tries to mount an available disk. If it finds no recognized
+filesystem, it asks whether to format the active disk as FAT32. Answering yes
+erases/formats that disk, so use a disposable virtual disk when testing!
+
+To attach a disposable AHCI disk image:
 
 ```sh
-qemu-img create -f raw sata.img 128M
-make run QEMU_STORAGE_ARGS='-device ich9-ahci,id=ahci -drive if=none,id=sata,file=sata.img,format=raw -device ide-hd,drive=sata,bus=ahci.0'
+qemu-img create -f raw build/sata.img 128M
+make run QEMU_STORAGE_ARGS='-device ich9-ahci,id=ahci -drive if=none,id=sata,file=build/sata.img,format=raw -device ide-hd,drive=sata,bus=ahci.0'
 ```
 
-## Clean
+## Clean up the build files
 
 ```sh
 make clean
 ```
+
+## How to get the required tools:
+
+For Ubuntu/Mint/Debian:
+
+```sh
+sudo apt update
+sudo apt install build-essential gcc-multilib nasm xorriso tar coreutils qemu-system-x86 qemu-utils limine
+
+```
+
+For Arch/Arch-based distros:
+
+```sh
+sudo pacman -S base-devel nasm xorriso tar coreutils qemu-full limine
+
+```
+
+For Gentoo Linux:
+
+```sh
+sudo emerge --ask sys-devel/base-devel dev-lang/nasm sys-apps/xorriso app-arch/tar sys-apps/coreutils app-emulation/qemu sys-boot/limine
+```
+(I recommend you use the --getbinpkg flag to fetch the precompiled binaries, as some of these packages are quite large!)
+
+For Windows:
+Using [MSYS2](https://www.msys2.org/) (UCRT64 environment):
+
+```sh
+pacman -S base-devel mingw-w64-ucrt-x86_64-toolchain nasm mtools xorriso qemu
+
+```
+
+If you use a different OS, search it online!

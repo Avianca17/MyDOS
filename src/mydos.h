@@ -7,9 +7,11 @@
 #define VGA_ADDRESS 0xB8000
 #define VGA_WIDTH 80
 #define VGA_HEIGHT 25
+#define VGA_MAX_WIDTH 160
+#define VGA_MAX_HEIGHT 60
 #define VGA_CTRL 0x3D4
 #define VGA_DATA 0x3D5
-#define PROMPT_LENGTH 16
+#define PROMPT_LENGTH 14
 
 #define BLACK 0x00
 #define BLUE 0x01
@@ -30,14 +32,20 @@
 
 void KernelEntryPoint(unsigned int magic, unsigned int mbi);
 void scrl(int *cursor_y);
+void shell_run(unsigned int mbi, int cursor_y);
+int shell_show_help(char *args, int cursor_y);
 
 void move_cursor(int x, int y);
 void print_logo_at(int x, int y);
 void print_logo(void);
 void print(const char *msg, unsigned char color, int x, int y);
+void vga_init_multiboot(unsigned int mbi);
+int vga_screen_width(void);
+int vga_screen_height(void);
 int change_theme(const char *name);
 void clear_screen(void);
 void scroll_screen(int *cursor_y);
+void scroll_screen_region(int first_row, int last_row, int rows);
 void print_logo_color(int x, int start_y, unsigned char color);
 void draw_pattern(const char *const pattern[], int width, int height,
                   unsigned char color, int x, int y);
@@ -53,6 +61,7 @@ void fpu_init(void);
 FRESULT fs_init(void);
 FRESULT fs_format(void);
 FRESULT fs_format_volume(BYTE volume);
+FRESULT fs_format_volume_type(BYTE volume, int fat_version);
 FRESULT make_file(const TCHAR *path);
 FRESULT copy_file(const TCHAR *source_path, const TCHAR *destination_path);
 void cp_file(char *args, int *cursor_y);

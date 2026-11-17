@@ -1,29 +1,37 @@
 #include <mydos.h>
 
-#define EDITOR_ROWS 21
-#define EDITOR_COLUMNS 78
 #define EDITOR_START_X 1
 #define EDITOR_START_Y 3
+#define EDITOR_MAX_ROWS (VGA_MAX_HEIGHT - EDITOR_START_Y - 1)
+#define EDITOR_MAX_COLUMNS (VGA_MAX_WIDTH - 2)
 #define EDITOR_FILENAME_MAX 32
 #define EDITOR_STATUS_X 36
 #define EDITOR_STATUS_Y 1
-#define EDITOR_STATUS_WIDTH 43
 
-static char document[EDITOR_ROWS][EDITOR_COLUMNS];
-static int line_lengths[EDITOR_ROWS];
-static char load_buffer[EDITOR_ROWS][EDITOR_COLUMNS];
-static int load_line_lengths[EDITOR_ROWS];
+static char document[EDITOR_MAX_ROWS][EDITOR_MAX_COLUMNS];
+static int line_lengths[EDITOR_MAX_ROWS];
+static char load_buffer[EDITOR_MAX_ROWS][EDITOR_MAX_COLUMNS];
+static int load_line_lengths[EDITOR_MAX_ROWS];
 static int line_count;
 static char current_filename[EDITOR_FILENAME_MAX + 1];
 static int has_filename;
 static int has_unsaved_changes;
 
+static int editor_rows(void) {
+    return vga_screen_height() - EDITOR_START_Y - 1;
+}
+
+static int editor_columns(void) {
+    return vga_screen_width() - 2;
+}
+
 static void show_status(const char *message, unsigned char color) {
-    char blank[EDITOR_STATUS_WIDTH + 1];
-    for (int i = 0; i < EDITOR_STATUS_WIDTH; i++) {
+    int width = vga_screen_width() - EDITOR_STATUS_X - 1;
+    char blank[VGA_MAX_WIDTH - EDITOR_STATUS_X];
+    for (int i = 0; i < width; i++) {
         blank[i] = ' ';
     }
-    blank[EDITOR_STATUS_WIDTH] = '\0';
+    blank[width] = '\0';
     print(blank, LIGHT_GREY, EDITOR_STATUS_X, EDITOR_STATUS_Y);
     print(message, color, EDITOR_STATUS_X, EDITOR_STATUS_Y);
 }
@@ -208,9 +216,9 @@ typedef enum {
 
 static editor_load_status load_document(const char *filename,
                                         FRESULT *filesystem_error) {
-    for (int y = 0; y < EDITOR_ROWS; y++) {
+    for (int y = 0; y < EDITOR_MAX_ROWS; y++) {
         load_line_lengths[y] = 0;
-        for (int x = 0; x < EDITOR_COLUMNS; x++) {
+        for (int x = 0; x < EDITOR_MAX_COLUMNS; x++) {
             load_buffer[y][x] = '\0';
         }
     }
@@ -247,7 +255,7 @@ static editor_load_status load_document(const char *filename,
             }
             if (character == '\n') {
                 if (pending_newline) {
-                    if (row + 1 >= EDITOR_ROWS) {
+                    if (row + 1 >= editor_rows()) {
                         status = EDITOR_LOAD_TOO_LARGE;
                         break;
                     }
@@ -264,7 +272,7 @@ static editor_load_status load_document(const char *filename,
                 break;
             }
             if (pending_newline) {
-                if (row + 1 >= EDITOR_ROWS) {
+                if (row + 1 >= editor_rows()) {
                     status = EDITOR_LOAD_TOO_LARGE;
                     break;
                 }
@@ -273,7 +281,7 @@ static editor_load_status load_document(const char *filename,
                 loaded_line_count = row + 1;
                 pending_newline = 0;
             }
-            if (column >= EDITOR_COLUMNS) {
+            if (column >= editor_columns()) {
                 status = EDITOR_LOAD_TOO_LARGE;
                 break;
             }
@@ -294,9 +302,9 @@ static editor_load_status load_document(const char *filename,
         return status;
     }
 
-    for (int y = 0; y < EDITOR_ROWS; y++) {
+    for (int y = 0; y < EDITOR_MAX_ROWS; y++) {
         line_lengths[y] = load_line_lengths[y];
-        for (int x = 0; x < EDITOR_COLUMNS; x++) {
+        for (int x = 0; x < EDITOR_MAX_COLUMNS; x++) {
             document[y][x] = load_buffer[y][x];
         }
     }
@@ -367,21 +375,23 @@ static int open_file(void) {
 }
 
 static void draw_document(void) {
-    char display_line[EDITOR_COLUMNS + 1];
+    char display_line[EDITOR_MAX_COLUMNS + 1];
 
-    for (int row = 0; row < EDITOR_ROWS; row++) {
-        for (int column = 0; column < EDITOR_COLUMNS; column++) {
+    int rows = editor_rows();
+    int columns = editor_columns();
+    for (int row = 0; row < rows; row++) {
+        for (int column = 0; column < columns; column++) {
             display_line[column] = column < line_lengths[row]
                 ? document[row][column]
                 : ' ';
         }
-        display_line[EDITOR_COLUMNS] = '\0';
+        display_line[columns] = '\0';
         print(display_line, WHITE, EDITOR_START_X, EDITOR_START_Y + row);
     }
 }
 
 static void insert_character(int row, int column, char character) {
-    if (line_lengths[row] >= EDITOR_COLUMNS) return;
+    if (line_lengths[row] >= editor_columns()) return;
 
     for (int x = line_lengths[row]; x > column; x--) {
         document[row][x] = document[row][x - 1];
@@ -398,7 +408,7 @@ static void delete_character(int row, int column) {
 }
 
 static int split_line(int row, int column) {
-    if (line_count >= EDITOR_ROWS) return 0;
+    if (line_count >= editor_rows()) return 0;
 
     for (int y = line_count; y > row + 1; y--) {
         line_lengths[y] = line_lengths[y - 1];
@@ -419,7 +429,7 @@ static int split_line(int row, int column) {
 
 static int join_with_previous_line(int row) {
     int previous_length = line_lengths[row - 1];
-    if (previous_length + line_lengths[row] > EDITOR_COLUMNS) return 0;
+    if (previous_length + line_lengths[row] > editor_columns()) return 0;
 
     for (int x = 0; x < line_lengths[row]; x++) {
         document[row - 1][previous_length + x] = document[row][x];
@@ -439,28 +449,22 @@ static int join_with_previous_line(int row) {
 
 void ui(void) {
     clear_screen();
-    for (int i = 0; i <= 24; i++) {
-        int x_temp = 0;
-        int x_temp2 = 79;
-        print("|", LIGHT_GREY, x_temp, i);
-        ++x_temp;
-        print("|", LIGHT_GREY, x_temp2, i);
-        ++x_temp2;
+    int width = vga_screen_width();
+    int height = vga_screen_height();
+    for (int y = 0; y < height; y++) {
+        print("|", LIGHT_GREY, 0, y);
+        print("|", LIGHT_GREY, width - 1, y);
     }
-    for (int i = 0; i <= 79; i++) {
-        int y_temp = 0;
-        int y_temp2 = 24;
-        print("=", LIGHT_GREY, i, y_temp);
-        ++y_temp;
-        print("=", LIGHT_GREY, i, y_temp2);
-        ++y_temp2;
+    for (int x = 0; x < width; x++) {
+        print("=", LIGHT_GREY, x, 0);
+        print("=", LIGHT_GREY, x, height - 1);
     }
     print("MYEDITOR", GREEN, 2, 0);
     print("F1", LIGHT_GREY, 2, 1); print("Save", LIGHT_GREY, 5, 1);
     print("F2", LIGHT_GREY, 15, 1); print("Open", LIGHT_GREY, 18, 1);
     print("F3", LIGHT_GREY, 28, 1); print("Exit", LIGHT_GREY, 31, 1);
     int y_t_t = 0;
-    while (y_t_t <= 79) {
+    while (y_t_t < width) {
         print("-", LIGHT_GREY, y_t_t, 2);
         ++y_t_t;
     }
@@ -468,7 +472,7 @@ void ui(void) {
 }
 
 void myeditor(void) {
-    for (int row = 0; row < EDITOR_ROWS; row++) {
+    for (int row = 0; row < EDITOR_MAX_ROWS; row++) {
         line_lengths[row] = 0;
     }
     line_count = 1;
@@ -540,7 +544,7 @@ void myeditor(void) {
                 has_unsaved_changes = 1;
             }
         } else if (key >= 32 && key <= 126) {
-            if (line_lengths[cursor_y] < EDITOR_COLUMNS) {
+            if (line_lengths[cursor_y] < editor_columns()) {
                 insert_character(cursor_y, cursor_x, key);
                 cursor_x++;
                 has_unsaved_changes = 1;
@@ -549,8 +553,8 @@ void myeditor(void) {
 
         draw_document();
         int display_x = EDITOR_START_X + cursor_x;
-        if (display_x > EDITOR_START_X + EDITOR_COLUMNS - 1) {
-            display_x = EDITOR_START_X + EDITOR_COLUMNS - 1;
+        if (display_x > EDITOR_START_X + editor_columns() - 1) {
+            display_x = EDITOR_START_X + editor_columns() - 1;
         }
         move_cursor(display_x, EDITOR_START_Y + cursor_y);
     }

@@ -49,7 +49,7 @@ static void print_centered(const char* prefix, const char* body, int y) {
     int body_len = body ? strlen(body) : 0;
     int total_len = prefix_len + body_len;
 
-    int x = (80 - total_len) / 2;
+    int x = (vga_screen_width() - total_len) / 2;
     if (x < 1) x = 1;
 
     if (prefix && prefix[0] != '\0') {
@@ -83,7 +83,7 @@ static void panic_render(unsigned int code, const char *exception_name, const ch
     if (message && message[0] != '\0') {
         print_centered("Error: ", message, 17);
     }
-    move_cursor(80, 25);
+    move_cursor(vga_screen_width() - 1, vga_screen_height() - 1);
     while (1) {
         __asm__ volatile("hlt");
     }

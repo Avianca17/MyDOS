@@ -1,9 +1,14 @@
 #include <mydos.h>
-#include "../../../fs/fatfs/source/diskio.h"
+#include "../fs/fatfs/source/ff.h"
+#include "../fs/fatfs/source/diskio.h"
 
 static FATFS fs[FF_VOLUMES];
 static BYTE format_work[FF_MAX_SS * 4];
 static BYTE active_volume;
+
+#if FF_MULTI_PARTITION
+PARTITION VolToPart[FF_VOLUMES];
+#endif
 
 FRESULT mkfat32(void) { return fs_format(); }
 
@@ -12,6 +17,13 @@ FRESULT fs_init(void) {
     int mounted_volume = -1;
     int first_ready_volume = -1;
     TCHAR path[3];
+
+#if FF_MULTI_PARTITION
+    for (BYTE volume = 0; volume < FF_VOLUMES; volume++) {
+        VolToPart[volume].pd = volume;
+        VolToPart[volume].pt = 0;
+    }
+#endif
 
     for (BYTE volume = 0; volume < FF_VOLUMES; volume++) {
         if (disk_initialize(volume) != 0) {
@@ -56,13 +68,18 @@ FRESULT fs_format(void) {
 
 /* Format one FatFs volume / physical disk, then mount it as the active drive. */
 FRESULT fs_format_volume(BYTE volume) {
+    return fs_format_volume_type(volume, 32);
+}
+
+FRESULT fs_format_volume_type(BYTE volume, int fat_version) {
     if (volume >= FF_VOLUMES) {
         return FR_INVALID_DRIVE;
     }
 
-    /* FM_FAT32 without FM_SFD creates the FAT32 partition table as well. */
+    /* FatFs exposes FAT32 as a dedicated format option; FAT12/FAT16 use the
+       generic FAT option and FatFs selects the subtype automatically. */
     MKFS_PARM options = {
-        .fmt = FM_FAT32,
+        .fmt = (fat_version == 32) ? FM_FAT32 : FM_FAT,
         .n_fat = 1,
         .align = 0,
         .n_root = 0,
@@ -341,6 +358,73 @@ FRESULT list_files(const TCHAR *path, int *cursor_y) {
     f_closedir(&directory);
     return res;
 }
+
+static void list_mbr_partitions(BYTE drive, int *cursor_y) {
+    BYTE sector[FF_MAX_SS];
+    DRESULT result = disk_read(drive, sector, 0, 1);
+
+    if (result != RES_OK) {
+        print("Could not read partition table.", RED, 0, *cursor_y);
+        scrl(cursor_y);
+        return;
+    }
+
+    if (sector[510] != 0x55 || sector[511] != 0xAA) {
+        print("No MBR partition table detected.", LIGHT_GREY, 0, *cursor_y);
+        scrl(cursor_y);
+        return;
+    }
+
+    int partition_count = 0;
+    for (int i = 0; i < 4; i++) {
+        const BYTE *entry = &sector[446 + i * 16];
+        BYTE type = entry[4];
+        DWORD start_lba = (DWORD)entry[8] |
+                          ((DWORD)entry[9] << 8) |
+                          ((DWORD)entry[10] << 16) |
+                          ((DWORD)entry[11] << 24);
+        DWORD sector_count = (DWORD)entry[12] |
+                             ((DWORD)entry[13] << 8) |
+                             ((DWORD)entry[14] << 16) |
+                             ((DWORD)entry[15] << 24);
+
+        if (type == 0 || sector_count == 0) {
+            continue;
+        }
+
+        if (type == 0xEE) {
+            print("GPT detected; GPT partitions are not listed.", YELLOW, 0, *cursor_y);
+            scrl(cursor_y);
+            return;
+        }
+
+        char partition_number[2] = {(char)('1' + i), '\0'};
+        char type_code[11];
+        char start_text[32];
+        char size_text[32];
+        itohex(type, type_code);
+        itoanum(start_lba, start_text);
+        itoanum(sector_count, size_text);
+
+        print("  partition ", LIGHT_CYAN, 0, *cursor_y);
+        print(partition_number, LIGHT_CYAN, 12, *cursor_y);
+        print(" type ", WHITE, 14, *cursor_y);
+        print(type_code, WHITE, 20, *cursor_y);
+        scrl(cursor_y);
+        print("    start LBA: ", LIGHT_GREY, 0, *cursor_y);
+        print(start_text, WHITE, 15, *cursor_y);
+        print("  sectors: ", LIGHT_GREY, 32, *cursor_y);
+        print(size_text, WHITE, 43, *cursor_y);
+        scrl(cursor_y);
+        partition_count++;
+    }
+
+    if (partition_count == 0) {
+        print("  No MBR partitions found.", LIGHT_GREY, 0, *cursor_y);
+        scrl(cursor_y);
+    }
+}
+
 void list_drives(int *cursor_y)
 {
     TCHAR label[32];
@@ -381,6 +465,7 @@ void list_drives(int *cursor_y)
 
         print("available", GREEN, 71, *cursor_y);
         scrl(cursor_y);
+        list_mbr_partitions((BYTE)i, cursor_y);
     }
 }
 FRESULT rm_file(const TCHAR *path) {
@@ -472,7 +557,7 @@ FRESULT cat_file(const TCHAR *path, int *cursor_y) {
                 cursor_x = 0;
                 scrl(cursor_y);
             } else {
-                if (cursor_x == VGA_WIDTH) {
+                if (cursor_x == vga_screen_width()) {
                     cursor_x = 0;
                     scrl(cursor_y);
                 }
