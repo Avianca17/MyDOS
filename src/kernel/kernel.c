@@ -101,7 +101,7 @@ void KernelEntryPoint(unsigned int magic, unsigned int mbi) {
 
     print_logo();
 
-    int cursor_y = 13;
+    int cursor_y = 9;
 
     FRESULT fs_result = fs_init();
 

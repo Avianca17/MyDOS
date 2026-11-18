@@ -155,10 +155,7 @@ void shell_run(unsigned int mbi, int cursor_y) {
     uptime = rtcts(hr, min, sec);
 
     print("Thank you for trying out MyDOS!", WHITE, 0, 7);
-    print("Keep in mind that it is still in beta, so there will not be many features", WHITE, 0, 8);
-    print("and there might be bugs. If you can, check out my GitHub repository at: ", WHITE, 0, 9);
-    print("---https://github.com/Avianca17/MyDOS---", GREEN, 0, 10);
-    print("That's all from me! Type 'help' to see available commands.", WHITE, 0, 11);
+    print("If you found a bug or have a suggestion, message me on Discord! aviancaflight17", WHITE, 0, 8);
 
     while (1) {
         char c = keyboard_getchar();
@@ -294,7 +291,7 @@ void shell_run(unsigned int mbi, int cursor_y) {
                 print("+--KEYS---------+--VALUES----------+", BLUE, 40, cursor_y);
                 print("| User          | root             |", RED, 40, cursor_y + 1);
                 print("| Host          | MyDOS            |", GREEN, 40, cursor_y + 2);
-                print("| Kernel        | ", BLUE, 40, cursor_y + 3);
+                print("| Kernel        | ", BLUE, 40, cursor_y + 3); 
                 print(KERNEL_VERSION, WHITE, 58, cursor_y + 3);
                 print("|", BLUE, 75, cursor_y + 3);
                 print("| Shell         | ", YELLOW, 40, cursor_y + 4);
@@ -312,7 +309,7 @@ void shell_run(unsigned int mbi, int cursor_y) {
                 print("|", LIGHT_BLUE, 75, cursor_y + 7);
                 print("+----------------+-----------------+", BLUE, 40, cursor_y + 8);
 
-                static const char block[] = {(char)0xDB, (char)0xDB, '\0'};
+                static const char block[] = "**";
 
                 print("+-COLORS---------+", BLUE, 40, cursor_y + 9);
                 print("| ", BLUE, 40, cursor_y + 10);
@@ -561,7 +558,6 @@ void shell_run(unsigned int mbi, int cursor_y) {
             } else if (strcmp(cmd, "lsdrv") == 0) {
                 if (args[0] != '\0') { print("Usage: lsdrv", RED, 0, cursor_y);} 
                 else { list_drives(&cursor_y); }
-                scrl(&cursor_y);
             } else if (strcmp(cmd, "mkfat") == 0) { mkfat(args, &cursor_y); } 
             else if (strcmp(cmd, "cd") == 0) {
                 if (args[0] == '\0') {
@@ -705,6 +701,101 @@ void shell_run(unsigned int mbi, int cursor_y) {
                 larry_message_index =
                     (larry_message_index + 1) %
                     (sizeof(larry_messages) / sizeof(larry_messages[0]));
+            }
+            else if (strcmp(cmd, "mk-mbr-part") == 0) {
+                char *arguments = args;
+                char *path = next_token(&arguments);
+                BYTE volume;
+
+                if (path == 0 ||
+                    next_token(&arguments) != 0 ||
+                    !parse_drive_root(path, &volume)) {
+                    print("Usage: mk-mbr-part <drive>:/", RED, 0, cursor_y);
+                    scrl(&cursor_y);
+                } else {
+                    LBA_t plist[] = {100, 0};
+                    BYTE work[FF_MAX_SS];
+
+                    FRESULT result = f_fdisk(volume, plist, work);
+                    switch (result) {
+                        case FR_OK: {
+                            #if FF_MULTI_PARTITION
+                            VolToPart[volume].pd = volume;
+                            VolToPart[volume].pt = 1;
+                            #endif
+                            TCHAR volume_path[3] = {(TCHAR)('0' + volume), ':', '\0'};
+                            MKFS_PARM options = {
+                                .fmt = FM_FAT32,
+                                .n_fat = 1,
+                                .align = 0,
+                                .n_root = 0,
+                                .au_size = 0
+                            };
+                            result = f_mkfs(volume_path, &options, work, sizeof work);
+                            switch (result) {
+                                case FR_OK:
+                                    print("mk-mbr-part: MBR and FAT32 setup complete.",
+                                          GREEN, 0, cursor_y);
+                                    scrl(&cursor_y);
+                                    break;
+                                case FR_DISK_ERR:
+                                    print("mk-mbr-part: Disk error during format!", RED, 0, cursor_y);
+                                    scrl(&cursor_y);
+                                    break;
+                                case FR_NOT_READY:
+                                    print("mk-mbr-part: Disk is not ready!", RED, 0, cursor_y);
+                                    scrl(&cursor_y);
+                                    break;
+                                case FR_WRITE_PROTECTED:
+                                    print("mk-mbr-part: Disk is write-protected!", RED, 0, cursor_y);
+                                    scrl(&cursor_y);
+                                    break;
+                                case FR_INVALID_PARAMETER:
+                                    print("mk-mbr-part: Invalid FAT32 format parameter!", RED, 0, cursor_y);
+                                    scrl(&cursor_y);
+                                    break;
+                                case FR_MKFS_ABORTED:
+                                    print("mk-mbr-part: FAT32 format aborted!", RED, 0, cursor_y);
+                                    scrl(&cursor_y);
+                                    break;
+                                case FR_NOT_ENOUGH_CORE:
+                                    print("mk-mbr-part: Not enough memory!", RED, 0, cursor_y);
+                                    scrl(&cursor_y);
+                                    break;
+                                default:
+                                    print("mk-mbr-part: FAT32 format failed!", RED, 0, cursor_y);
+                                    scrl(&cursor_y);
+                                    break;
+                            }
+                            break;
+                        }
+                        case FR_DISK_ERR:
+                            print("mk-mbr-part: Disk error while creating MBR!", RED, 0, cursor_y);
+                            scrl(&cursor_y);
+                            break;
+                        case FR_NOT_READY:
+                            print("mk-mbr-part: Disk is not ready!", RED, 0, cursor_y);
+                            scrl(&cursor_y);
+                            break;
+                        case FR_WRITE_PROTECTED:
+                            print("mk-mbr-part: Disk is write-protected!", RED, 0, cursor_y);
+                            scrl(&cursor_y);
+                            break;
+                        case FR_INVALID_PARAMETER:
+                            print("mk-mbr-part: Invalid partition parameter!", RED, 0, cursor_y);
+                            scrl(&cursor_y);
+                            break;
+                        case FR_NOT_ENOUGH_CORE:
+                            print("mk-mbr-part: Not enough memory!", RED, 0, cursor_y);
+                            scrl(&cursor_y);
+                            break;
+                        default:
+                            print("mk-mbr-part: MBR partitioning failed!", RED, 0, cursor_y);
+                            scrl(&cursor_y);
+                            break;
+                    }
+                }
+
             }
 
             else if (strcmp(cmd, "shtdwn") == 0) {

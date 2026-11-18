@@ -202,9 +202,6 @@ static void draw_framebuffer_cell(int index) {
     uint16_t cell = screen_cells[index];
     uint8_t character = (uint8_t)cell;
     uint8_t attribute = (uint8_t)(cell >> 8);
-    if (character >= 128) {
-        character = '?';
-    }
 
     int cell_x = (index % active_screen_width) * FRAMEBUFFER_CELL_WIDTH;
     int cell_y = (index / active_screen_width) * FRAMEBUFFER_CELL_HEIGHT;
@@ -449,8 +446,28 @@ void print(const char* msg, unsigned char color, int x, int y) {
     for (int i = 0; msg[i] != '\0'; i++) {
         if (offset >= active_screen_width * active_screen_height) break;
 
+        unsigned char character = (unsigned char)msg[i];
+        if (character == 0xC2 &&
+            (unsigned char)msg[i + 1] == 0xA7) {
+            character = 0x15;
+            i++;
+        } else if (character == 0xC3) {
+            unsigned char continuation = (unsigned char)msg[i + 1];
+            switch (continuation) {
+                case 0x84: character = 0x8E; break;
+                case 0x96: character = 0x99; break;
+                case 0x9C: character = 0x9A; break;
+                case 0x9F: character = 0xE1; break;
+                case 0xA4: character = 0x84; break;
+                case 0xB6: character = 0x94; break;
+                case 0xBC: character = 0x81; break;
+                default: character = '?'; break;
+            }
+            i++;
+        }
+
         write_cell(offset,
-                   (unsigned char)msg[i] | ((unsigned short)color << 8));
+                   character | ((unsigned short)color << 8));
         offset++;
     }
 }
