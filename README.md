@@ -5,7 +5,7 @@ assembly. It boots through Limine using the Multiboot 1 protocol. The hybrid ISO
 supports both Legacy BIOS and UEFI! It runs great on QEMU, VirtualBox, VMware and 86Box.
 I have not tested it on real hardware yet, so I doubt it boots :/ 
 
-![MyDOS running in VirtualBox](image-2.png)
+![MyDOS running in VirtualBox](image.png)
 
 ## Features
 
