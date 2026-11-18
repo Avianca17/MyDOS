@@ -14,6 +14,7 @@ I have not tested it on real hardware yet, so I doubt it boots :/
 - Keyboard-only shell with US, German, and French layouts
 - FatFs filesystem support, with FAT32 formatting as the main option but theres FAT12/FAT16 too.
 - ATA/IDE and AHCI SATA disk access
+- DHCP over Intel e1000 and Realtek RTL8139/8129 Ethernet controllers
 - Built-in text editor and calculator
 - Live installer that copies MyDOS and Limine boot files to a disk (I am very proud of this one!)
 
@@ -37,6 +38,7 @@ Shell:
 - `echo [-c <color>|--color <color>] <text>`
 - `change-theme <default|matrix|ocean|sunset>`
 - `loadkeys <us|de|fr|status>` (the main layout is German because thats my layout!)
+- `dhcp [renew|status]`
 - `date [-t|--time] [-d|--date] [-12|--12h]`
 - `uptime [-p|--pretty] [-s|--seconds]`
 - `fetch`, `shlogo`, `larry`, `beep`
@@ -112,6 +114,10 @@ make LIMINE_DATA_DIR=/usr/share/limine
 make run
 ```
 
+`make run` attaches an Intel e1000 NIC with QEMU user-mode networking by
+default. Override it with `QEMU_NET_ARGS`, for example
+`QEMU_NET_ARGS='-nic user,model=rtl8139'`.
+
 The regular LiveCD tries to mount an available disk. If it finds no recognized
 filesystem, it asks whether to format the active disk as FAT32. Answering yes
 erases/formats that disk, so use a disposable virtual disk when testing!
@@ -162,3 +168,7 @@ pacman -S base-devel mingw-w64-ucrt-x86_64-toolchain nasm mtools xorriso qemu
 ```
 
 If you use a different OS, search it online!
+
+## Contributors
+
+- [homu-sys](https://github.com/homu-sys)

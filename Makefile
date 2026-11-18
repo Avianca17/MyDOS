@@ -14,6 +14,7 @@ DD ?= dd
 QEMU ?= qemu-system-i386
 QEMU_AUDIO_ARGS ?= -audiodev pa,id=pcspk -machine pc,pcspk-audiodev=pcspk
 QEMU_STORAGE_ARGS ?=
+QEMU_NET_ARGS ?= -nic user,model=e1000
 LIMINE ?= limine
 LIMINE_DATA_DIR ?= $(shell $(LIMINE) --print-datadir)
 
@@ -104,7 +105,7 @@ $(ISO_IMAGE): Makefile $(KERNEL) iso/limine.conf iso/limine-installed.conf \
 	$(LIMINE) bios-install "$@"
 
 run: $(ISO_IMAGE)
-	$(QEMU) -cdrom $(ISO_IMAGE) $(QEMU_AUDIO_ARGS) $(QEMU_STORAGE_ARGS)
+	$(QEMU) -cdrom $(ISO_IMAGE) $(QEMU_AUDIO_ARGS) $(QEMU_STORAGE_ARGS) $(QEMU_NET_ARGS)
 
 run-limine: run
 
