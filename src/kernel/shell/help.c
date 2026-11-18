@@ -34,7 +34,7 @@ int shell_show_help(char *args, int cursor_y) {
         help_row("| [ FILESYSTEM ]                                                           |", LIGHT_GREEN, &cursor_y);
         help_row("|   mkdir           mkfile          ls             lsdrv                   |", LIGHT_GREY, &cursor_y);
         help_row("|   rm              cd              pwd            mkfat                   |", LIGHT_GREY, &cursor_y);
-        help_row("|   read            cp              mv                                     |", LIGHT_GREY, &cursor_y);
+        help_row("|   read            cp              mv             mk-mbr-part             |", LIGHT_GREY, &cursor_y);
         help_row("| [ PROGRAMS ]                                                             |", RED, &cursor_y);
         help_row("|   myeditor        calc                                                   | ", LIGHT_GREY, &cursor_y);
         help_row("+--------------------------------------------------------------------------+", BLUE, &cursor_y);
@@ -212,6 +212,10 @@ int shell_show_help(char *args, int cursor_y) {
     } else if (strcmp(args, "larry") == 0) {
         print("Larry", WHITE, 0, cursor_y); scrl(&cursor_y);
         print("emerge --moo", LIGHT_GREY, 0, cursor_y);
+    } else if (strcmp(args, "mk-mbr-part") == 0) {
+        print("Usage: mk-mbr-part <drive_number>:/", WHITE, 0, cursor_y);
+        scrl(&cursor_y);
+        print("Makes an MBR partition. Useful for installing MyDOS onto a disk.", LIGHT_GREY, 0, cursor_y);
     }
     else {
         print("help: unknown command, please try again", RED, 0, cursor_y);
