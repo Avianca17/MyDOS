@@ -68,6 +68,7 @@ static const uint8_t vga_palette[16][3] = {
 static uint16_t screen_cells[VGA_MAX_WIDTH * VGA_MAX_HEIGHT];
 static framebuffer_t framebuffer;
 static uint32_t framebuffer_palette[16];
+static uint32_t indexed_palette[256];
 static int framebuffer_enabled;
 static int active_screen_width = VGA_WIDTH;
 static int active_screen_height = VGA_HEIGHT;
@@ -184,6 +185,72 @@ int vga_screen_width(void) {
 
 int vga_screen_height(void) {
     return active_screen_height;
+}
+
+int vga_framebuffer_available(void) {
+    return framebuffer_enabled;
+}
+
+void vga_framebuffer_set_indexed_palette(const unsigned char *palette) {
+    if (!framebuffer_enabled || palette == 0) {
+        return;
+    }
+
+    for (unsigned int index = 0; index < 256; index++) {
+        indexed_palette[index] =
+            pack_color(palette[index * 3], palette[index * 3 + 1],
+                       palette[index * 3 + 2]);
+    }
+}
+
+void vga_framebuffer_present_indexed(const unsigned char *pixels, int width,
+                                     int height) {
+    if (!framebuffer_enabled || pixels == 0 || width <= 0 || height <= 0) {
+        return;
+    }
+
+    uint32_t target_height = framebuffer.height;
+    uint32_t width_limit = framebuffer.width * 3 / 4;
+    if (width_limit < target_height) {
+        target_height = width_limit;
+    }
+    if (target_height > 720) {
+        target_height = 720;
+    }
+    if (target_height == 0) {
+        return;
+    }
+
+    uint32_t target_width = target_height * 4 / 3;
+    if (target_width > framebuffer.width) {
+        target_width = framebuffer.width;
+        target_height = target_width * 3 / 4;
+    }
+    if (target_width == 0 || target_height == 0) {
+        return;
+    }
+
+    uint32_t x_offset = (framebuffer.width - target_width) / 2;
+    uint32_t y_offset = (framebuffer.height - target_height) / 2;
+
+    for (uint32_t y = 0; y < target_height; y++) {
+        uint32_t source_y = y * (uint32_t)height / target_height;
+        const unsigned char *source = pixels + source_y * (uint32_t)width;
+        volatile uint8_t *destination =
+            (volatile uint8_t *)(framebuffer.address +
+                (uintptr_t)(y_offset + y) * framebuffer.pitch +
+                (uintptr_t)x_offset * framebuffer.bytes_per_pixel);
+
+        for (uint32_t x = 0; x < target_width; x++) {
+            uint32_t source_x = x * (uint32_t)width / target_width;
+            uint32_t color = indexed_palette[source[source_x]];
+            volatile uint8_t *pixel =
+                destination + (uintptr_t)x * framebuffer.bytes_per_pixel;
+            for (uint8_t byte = 0; byte < framebuffer.bytes_per_pixel; byte++) {
+                pixel[byte] = (uint8_t)(color >> (byte * 8));
+            }
+        }
+    }
 }
 
 static void framebuffer_pixel(int x, int y, uint32_t color) {

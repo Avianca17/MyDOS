@@ -235,9 +235,20 @@ const char *keyboard_get_layout_name(void) {
     return active_layout;
 }
 
-static int shift_pressed = 0;
+#define LEFT_CTRL 0x1D
+#define LEFT_ALT  0x38
+
+static int left_shift_pressed = 0;
+static int right_shift_pressed = 0;
+static int ctrl_pressed = 0;
+static int alt_pressed = 0;
 static int altgr_pressed = 0;
 static int extended_scancode = 0;
+static int skip_scancodes = 0;
+
+static int shift_pressed(void) {
+    return left_shift_pressed || right_shift_pressed;
+}
 
 unsigned char io_inb(unsigned short port) {
     unsigned char value;
@@ -245,51 +256,102 @@ unsigned char io_inb(unsigned short port) {
     return value;
 }
 
+static int translate_scancode(int scancode) {
+    if (scancode < 0 || scancode >= 128) {
+        return 0;
+    }
+    if (altgr_pressed && scancode_ascii_altgr[scancode] != 0) {
+        return (unsigned char)scancode_ascii_altgr[scancode];
+    }
+    return (unsigned char)(shift_pressed() ? scancode_ascii_shift[scancode]
+                                           : scancode_ascii[scancode]);
+}
+
+int keyboard_poll_event(keyboard_event_t *event) {
+    if (event == 0 || !(io_inb(KEYBOARD_STATUS_PORT) & 0x01)) {
+        return 0;
+    }
+
+    unsigned char scancode = io_inb(KEYBOARD_DATA_PORT);
+
+    if (skip_scancodes) {
+        skip_scancodes--;
+        return 0;
+    }
+
+    if (scancode == 0xE1) {
+        skip_scancodes = 2;
+        return 0;
+    }
+
+    if (scancode == 0xE0) {
+        extended_scancode = 1;
+        return 0;
+    }
+
+    int extended = extended_scancode;
+    extended_scancode = 0;
+    int released = (scancode & 0x80) != 0;
+    int code = scancode & 0x7f;
+    int pressed = !released;
+    int key = 0;
+
+    if (extended) {
+        if (code == RIGHT_ALT) {
+            altgr_pressed = pressed;
+            alt_pressed = pressed;
+            key = KEYBOARD_KEY_ALT;
+        } else if (code == LEFT_CTRL) {
+            ctrl_pressed = pressed;
+            key = KEYBOARD_KEY_CTRL;
+        } else if (code == 0x48) {
+            key = KEY_ARROW_UP;
+        } else if (code == 0x50) {
+            key = KEY_ARROW_DOWN;
+        } else if (code == 0x4B) {
+            key = KEY_ARROW_LEFT;
+        } else if (code == 0x4D) {
+            key = KEY_ARROW_RIGHT;
+        } else if (code == 0x1C) {
+            key = '\n';
+        } else if (code == 0x35) {
+            key = '/';
+        }
+    } else {
+        if (code == LEFT_SHIFT) {
+            left_shift_pressed = pressed;
+            key = KEYBOARD_KEY_SHIFT;
+        } else if (code == RIGHT_SHIFT) {
+            right_shift_pressed = pressed;
+            key = KEYBOARD_KEY_SHIFT;
+        } else if (code == LEFT_CTRL) {
+            ctrl_pressed = pressed;
+            key = KEYBOARD_KEY_CTRL;
+        } else if (code == LEFT_ALT) {
+            alt_pressed = pressed;
+            key = KEYBOARD_KEY_ALT;
+        } else {
+            key = translate_scancode(code);
+        }
+    }
+
+    if (key == 0) {
+        return 0;
+    }
+
+    event->key = key;
+    event->scancode = code;
+    event->pressed = pressed;
+    event->extended = extended;
+    return 1;
+}
+
 char keyboard_getchar(void) {
-    if (io_inb(KEYBOARD_STATUS_PORT) & 0x01) {
-        unsigned char scancode = io_inb(KEYBOARD_DATA_PORT);
+    keyboard_event_t event;
 
-        if (scancode == 0xE0) {
-            extended_scancode = 1;
-            return 0;
-        }
-
-        if (extended_scancode) {
-            extended_scancode = 0;
-            if (scancode == RIGHT_ALT) {
-                altgr_pressed = 1;
-                return 0;
-            }
-            if (scancode == (RIGHT_ALT | 0x80)) {
-                altgr_pressed = 0;
-                return 0;
-            }
-            if (scancode == 0x48) return KEY_ARROW_UP;
-            if (scancode == 0x50) return KEY_ARROW_DOWN;
-            if (scancode == 0x4B) return KEY_ARROW_LEFT;
-            if (scancode == 0x4D) return KEY_ARROW_RIGHT;
-            return 0;
-        }
-
-        if (scancode == LEFT_SHIFT || scancode == RIGHT_SHIFT) {
-            shift_pressed = 1;
-            return 0;
-        }
-
-        if (scancode == (LEFT_SHIFT | 0x80) || scancode == (RIGHT_SHIFT | 0x80)) {
-            shift_pressed = 0;
-            return 0;
-        }
-
-        if (scancode & 0x80) {
-            return 0;
-        }
-
-        if (scancode < 128) {
-            if (altgr_pressed && scancode_ascii_altgr[scancode] != 0) {
-                return scancode_ascii_altgr[scancode];
-            }
-            return shift_pressed ? scancode_ascii_shift[scancode] : scancode_ascii[scancode];
+    while (keyboard_poll_event(&event)) {
+        if (event.pressed && event.key > 0 && event.key < KEYBOARD_KEY_SHIFT) {
+            return (char)event.key;
         }
     }
     return 0;

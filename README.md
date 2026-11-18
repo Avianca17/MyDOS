@@ -7,6 +7,11 @@ I have not tested it on real hardware yet, so I doubt it boots :/
 
 ![MyDOS running in VirtualBox](image.png)
 
+## Download
+
+Prebuilt ISO releases are available on the
+[Releases page](https://github.com/homu-sys/MyDOS/releases).
+
 ## Features
 
 - Custom kernel 
@@ -14,8 +19,9 @@ I have not tested it on real hardware yet, so I doubt it boots :/
 - Keyboard-only shell with US, German, and French layouts
 - FatFs filesystem support, with FAT32 formatting as the main option but theres FAT12/FAT16 too.
 - ATA/IDE and AHCI SATA disk access
-- DHCP over Intel e1000 and Realtek RTL8139/8129 Ethernet controllers
+- DHCP and ICMP ping over Intel e1000 and Realtek RTL8139/8129 Ethernet controllers
 - Built-in text editor and calculator
+- Playable id-Software DOOM port (WAD file required)
 - Live installer that copies MyDOS and Limine boot files to a disk (I am very proud of this one!)
 
 ## Boot options
@@ -38,7 +44,7 @@ Shell:
 - `echo [-c <color>|--color <color>] <text>`
 - `change-theme <default|matrix|ocean|sunset>`
 - `loadkeys <us|de|fr|status>` (the main layout is German because thats my layout!)
-- `dhcp [renew|status]`
+- `dhcp [renew|status]`, `ping <ipv4-address> [count]`
 - `date [-t|--time] [-d|--date] [-12|--12h]`
 - `uptime [-p|--pretty] [-s|--seconds]`
 - `fetch`, `shlogo`, `larry`, `beep`
@@ -50,12 +56,21 @@ Files and disks:
 - `cp <source> <destination>`, `mv <source> <destination>`
 - `lsdrv`
 - `mkfat -f <12|16|32> <drive>:/`
-- `myeditor`, `calc`
+- `myeditor`, `calc`, `doom [options] [wad]`
 
 System:
 
 - `rbt` reboots; `shtdwn` halts the CPU (a VM may not power off)
 - `kp` deliberately triggers a kernel panic for testing
+
+## Source layout
+
+- `src/kernel/cmd/` - one file per shell command, plus the command table/dispatcher
+- `src/kernel/net/` - networking core, DHCP, ARP/ICMP, PCI, and NIC drivers
+- `src/kernel/shell/` - shell input/line editing only
+- `src/kernel/drivers/` - VGA, keyboard, RTC, AHCI, and PC speaker drivers
+- `src/programs/` - standalone programs such as the editor and calculator
+- `src/programs/doom/` - id-Software DOOM 1.10 source plus the MyDOS platform port
 
 ## Installing to a disk
 
@@ -128,6 +143,28 @@ To attach a disposable AHCI disk image:
 qemu-img create -f raw build/sata.img 128M
 make run QEMU_STORAGE_ARGS='-device ich9-ahci,id=ahci -drive if=none,id=sata,file=build/sata.img,format=raw -device ide-hd,drive=sata,bus=ahci.0'
 ```
+
+## DOOM
+
+The ISO includes the DOOM engine but does not include a WAD file. Put a legal
+WAD on a FAT disk, boot the ISO, and run:
+
+```text
+doom
+doom -iwad DOOM1.WAD
+```
+
+Freedoom is a good free WAD. DOOM needs a framebuffer, so boot `build/MyDOS.iso`
+through Limine rather than using direct `-kernel` boot. F10 opens the quit menu.
+
+## Roadmap
+
+- Save DOOM settings and configuration back to the FAT disk
+- Add sound and mouse support
+- Improve DOOM startup and rendering performance
+- Test on real hardware and improve hardware detection
+- Add TCP, DNS, and HTTP support
+- Add automated CI builds and ISO release artifacts
 
 ## Clean up the build files
 

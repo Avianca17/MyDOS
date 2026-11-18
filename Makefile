@@ -21,6 +21,9 @@ LIMINE_DATA_DIR ?= $(shell $(LIMINE) --print-datadir)
 CFLAGS := -m32 -ffreestanding -fno-pie -fno-stack-protector -Wall -Wextra -MMD -MP -mno-sse -mno-sse2 -mfpmath=387
 CPPFLAGS := -I src -I src/kernel -I src/lib -I src/fs/fatfs/source -I src/programs/myeditor
 
+DOOM_DIR := src/programs/doom
+DOOM_CPPFLAGS := -I $(DOOM_DIR)/port -I $(DOOM_DIR) -DNORMALUNIX -include alloca.h
+
 LIMINE_BOOT_FILES := $(addprefix $(LIMINE_DATA_DIR)/, \
 	limine-bios.sys limine-bios-cd.bin limine-uefi-cd.bin \
 	BOOTX64.EFI BOOTIA32.EFI)
@@ -42,6 +45,14 @@ all: $(ISO_IMAGE)
 iso: $(ISO_IMAGE)
 
 limine-iso: $(ISO_IMAGE)
+
+$(BUILD_DIR)/programs/doom/port/%.o: $(DOOM_DIR)/port/%.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CPPFLAGS) $(DOOM_CPPFLAGS) $(CFLAGS) -std=gnu11 -c $< -o $@
+
+$(BUILD_DIR)/programs/doom/%.o: $(DOOM_DIR)/%.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CPPFLAGS) $(DOOM_CPPFLAGS) $(CFLAGS) -std=gnu89 -w -c $< -o $@
 
 $(BUILD_DIR)/%.o: src/%.c
 	@mkdir -p $(dir $@)

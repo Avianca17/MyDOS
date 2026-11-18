@@ -33,7 +33,6 @@
 void KernelEntryPoint(unsigned int magic, unsigned int mbi);
 void scrl(int *cursor_y);
 void shell_run(unsigned int mbi, int cursor_y);
-int shell_show_help(char *args, int cursor_y);
 
 void move_cursor(int x, int y);
 void print_logo_at(int x, int y);
@@ -42,6 +41,10 @@ void print(const char *msg, unsigned char color, int x, int y);
 void vga_init_multiboot(unsigned int mbi);
 int vga_screen_width(void);
 int vga_screen_height(void);
+int vga_framebuffer_available(void);
+void vga_framebuffer_set_indexed_palette(const unsigned char *palette);
+void vga_framebuffer_present_indexed(const unsigned char *pixels, int width,
+                                     int height);
 int change_theme(const char *name);
 void clear_screen(void);
 void scroll_screen(int *cursor_y);
@@ -146,6 +149,19 @@ unsigned char io_inb(unsigned short port);
 char keyboard_getchar(void);
 int keyboard_load_layout(const char *layout_name);
 const char *keyboard_get_layout_name(void);
+
+#define KEYBOARD_KEY_SHIFT 0x100
+#define KEYBOARD_KEY_CTRL  0x101
+#define KEYBOARD_KEY_ALT   0x102
+
+typedef struct {
+    int key;
+    int scancode;
+    int pressed;
+    int extended;
+} keyboard_event_t;
+
+int keyboard_poll_event(keyboard_event_t *event);
 
 #define SCANCODE_F1 0x3B
 #define SCANCODE_F2 0x3C
