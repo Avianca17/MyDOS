@@ -1,4 +1,5 @@
 #include <mydos.h>
+#include <net/net.h>
 
 #define KERNEL_VERSION "mk-0.5-stable"
 #define SHELL_VERSION "trml-0.4"
@@ -228,6 +229,8 @@ void shell_run(unsigned int mbi, int cursor_y) {
                     print("loadkeys: unsupported layout. Try us, de, or fr.", RED, 0, cursor_y);
                     scrl(&cursor_y);
                 }
+            } else if (strcmp(cmd, "dhcp") == 0) {
+                net_command(args, &cursor_y);
             } else if (strcmp(cmd, "echo") == 0) {
                 if (args[0] == '\0') {
                     print("echo: echo requires some text", RED, 0, cursor_y);

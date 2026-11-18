@@ -29,6 +29,8 @@ int shell_show_help(char *args, int cursor_y) {
         help_row("|   help            clear           echo           change-theme            |", LIGHT_GREY, &cursor_y);
         help_row("|   loadkeys        date            uptime          fetch                  |", LIGHT_GREY, &cursor_y);
         help_row("|   shlogo          beep            larry                                  |", LIGHT_GREY, &cursor_y);
+        help_row("| [ NETWORK ]                                                              |", LIGHT_CYAN, &cursor_y);
+        help_row("|   dhcp                                                                   |", LIGHT_GREY, &cursor_y);
         help_row("| [ POWER ]                                                                |", LIGHT_CYAN, &cursor_y);
         help_row("|   rbt             shtdwn          kp                                     |", LIGHT_GREY, &cursor_y);
         help_row("| [ FILESYSTEM ]                                                           |", LIGHT_GREEN, &cursor_y);
@@ -132,6 +134,13 @@ int shell_show_help(char *args, int cursor_y) {
         print("Usage: loadkeys <us|de|fr|status>", WHITE, 0, cursor_y);
         scrl(&cursor_y);
         print("Loads a built-in keyboard layout or reports the active layout.", LIGHT_GREY, 0, cursor_y);
+
+    } else if (strcmp(args, "dhcp") == 0) {
+        print("Usage: dhcp [renew|status]", WHITE, 0, cursor_y);
+        scrl(&cursor_y);
+        print("Requests an IPv4 lease from a DHCP server.", LIGHT_GREY, 0, cursor_y);
+        scrl(&cursor_y);
+        print("Supported NICs: Intel e1000 and Realtek RTL8139/8129.", LIGHT_GREY, 0, cursor_y);
 
     } else if (strcmp(args, "fetch") == 0) {
         print("Usage: fetch", WHITE, 0, cursor_y);
