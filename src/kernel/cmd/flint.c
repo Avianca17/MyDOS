@@ -2,6 +2,7 @@
 #include <cmd/cmd.h>
 #include <ff.h>
 #include <net/net.h>
+#include <pkg/pkg.h>
 
 #define FLINT_INDEX_URL "http://distfiles.gentoo.org/releases/x86/binpackages/23.0/i686/Packages"
 #define FLINT_PKG_BASE "http://distfiles.gentoo.org/releases/x86/binpackages/23.0/i686/"
@@ -120,10 +121,10 @@ static void flint_help(int *cursor_y) {
     flint_line("  sync                 download Gentoo x86 package index", LIGHT_GREY, cursor_y);
     flint_line("  search <term>        search cached package names", LIGHT_GREY, cursor_y);
     flint_line("  info <atom>          show package metadata", LIGHT_GREY, cursor_y);
-    flint_line("  install <atom>       download a .gpkg.tar package", LIGHT_GREY, cursor_y);
+    flint_line("  install <atom>       download and install a .gpkg.tar package", LIGHT_GREY, cursor_y);
     flint_line("  fetch <url> <dest>   download any plain HTTP URL", LIGHT_GREY, cursor_y);
     flint_line("  source               show package source URL", LIGHT_GREY, cursor_y);
-    flint_line("Packages are downloaded only; MyDOS cannot unpack them yet.", YELLOW, cursor_y);
+    flint_line("Packages are unpacked into BIN, USR, and ETC.", YELLOW, cursor_y);
 }
 
 static void flint_sync(int *cursor_y) {
@@ -276,10 +277,22 @@ static void flint_install(const char *query, int *cursor_y) {
     flint_ensure_dirs();
     flint_line("flint: downloading " , WHITE, cursor_y);
     print(package_path, LIGHT_GREY, 18, *cursor_y - 1);
-    if (net_http_get_file(url, destination)) {
-        flint_line("flint: package saved under FLINT/PACKAGES", GREEN, cursor_y);
-    } else {
+    if (!net_http_get_file(url, destination)) {
         flint_line("flint: package download failed", RED, cursor_y);
+        return;
+    }
+
+    char executable[64];
+    int installed = pkg_install_gpkg(destination, executable, sizeof(executable));
+    if (installed <= 0) {
+        flint_line("flint: could not install package", RED, cursor_y);
+        return;
+    }
+
+    flint_line("flint: installed files from downloaded package", GREEN, cursor_y);
+    if (executable[0] != '\0') {
+        flint_line("flint: run ", WHITE, cursor_y);
+        print(executable, LIGHT_GREY, 11, *cursor_y - 1);
     }
 }
 

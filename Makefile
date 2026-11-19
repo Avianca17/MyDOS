@@ -25,7 +25,9 @@ LIMINE ?= limine
 LIMINE_DATA_DIR ?= $(shell $(LIMINE) --print-datadir)
 
 CFLAGS := -m32 -ffreestanding -fno-pie -fno-stack-protector -Wall -Wextra -MMD -MP -mno-sse -mno-sse2 -mfpmath=387
-CPPFLAGS := -I src -I src/kernel -I src/lib -I src/fs/fatfs/source -I src/programs/myeditor
+CPPFLAGS := -I src -I src/kernel -I src/lib -I src/fs/fatfs/source -I src/programs/myeditor \
+	-I src/lib/zstd -I src/lib/zstd/common -I src/lib/zstd/decompress \
+	-include src/kernel/pkg/zstd_alloc.h
 
 DOOM_DIR := src/programs/doom
 DOOM_CPPFLAGS := -I $(DOOM_DIR)/port -I $(DOOM_DIR) -DNORMALUNIX -include alloca.h
