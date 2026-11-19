@@ -30,7 +30,7 @@ void cmd_help(char *args, int *cursor_y) {
         help_row("|   loadkeys        date            uptime          fetch                  |", LIGHT_GREY, cursor_y);
         help_row("|   shlogo          beep            larry           set                    |", LIGHT_GREY, cursor_y);
         help_row("| [ NETWORK ]                                                              |", LIGHT_CYAN, cursor_y);
-        help_row("|   dhcp            ping                                                   |", LIGHT_GREY, cursor_y);
+        help_row("|   dhcp            ping            flint                                  |", LIGHT_GREY, cursor_y);
         help_row("| [ POWER ]                                                                |", LIGHT_CYAN, cursor_y);
         help_row("|   rbt             shtdwn          kp                                     |", LIGHT_GREY, cursor_y);
         help_row("| [ FILESYSTEM ]                                                           |", LIGHT_GREEN, cursor_y);
@@ -68,11 +68,12 @@ void cmd_help(char *args, int *cursor_y) {
               LIGHT_GREY, 0, *cursor_y);
 
     } else if (strcmp(args, "set") == 0) {
-        print("Usage: set [PS1[=prompt]]", WHITE, 0, *cursor_y);
+        print("Usage: set [PS1[=prompt]|PATH[=dirs]]", WHITE, 0, *cursor_y);
         scrl(cursor_y);
-        print("Shows or changes the shell prompt variable PS1.", LIGHT_GREY, 0, *cursor_y);
+        print("Shows or changes PS1 and PATH. PATH locates user ELF binaries.",
+              LIGHT_GREY, 0, *cursor_y);
         scrl(cursor_y);
-        print("Escapes: \\h host, \\u user, \\w path, \\W folder, \\$ prompt.",
+        print("PS1 escapes: \\h host, \\u user, \\w path, \\W folder, \\$ prompt.",
               LIGHT_GREY, 0, *cursor_y);
         scrl(cursor_y);
         print("Example: set PS1=\\h:\\w\\$ ", LIGHT_GREY, 0, *cursor_y);
@@ -158,6 +159,17 @@ void cmd_help(char *args, int *cursor_y) {
         print("Usage: fetch", WHITE, 0, *cursor_y);
         scrl(cursor_y);
         print("Basically fastfetch on Linux/Windows/macOS/BSD, but for MyDOS.", LIGHT_GREY, 0, *cursor_y);
+
+    } else if (strcmp(args, "flint") == 0) {
+        print("Usage: flint <command> [arguments]", WHITE, 0, *cursor_y);
+        scrl(cursor_y);
+        print("Package manager for Gentoo x86 binpackages over plain HTTP.", LIGHT_GREY, 0, *cursor_y);
+        scrl(cursor_y);
+        print("Commands: sync, search <term>, info <atom>, install <atom>, fetch, source.",
+              LIGHT_GREY, 0, *cursor_y);
+        scrl(cursor_y);
+        print("Run 'flint sync' before searching; install downloads .gpkg.tar files only.",
+              YELLOW, 0, *cursor_y);
 
     } else if (strcmp(args, "mkfile") == 0) {
         print("Usage: mkfile [FILENAME.EXTENSION]", WHITE, 0, *cursor_y);

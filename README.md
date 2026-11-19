@@ -19,7 +19,9 @@ Prebuilt ISO releases are available on the
 - Keyboard-only shell with US, German, and French layouts
 - FatFs filesystem support, with FAT32 formatting as the main option but theres FAT12/FAT16 too.
 - ATA/IDE and AHCI SATA disk access
-- DHCP and ICMP ping over Intel e1000 and Realtek RTL8139/8129 Ethernet controllers
+- DHCP, ICMP ping, DNS, TCP, and plain HTTP over Intel e1000 and Realtek RTL8139/8129 Ethernet controllers
+- `flint` package manager for Gentoo x86 binpackage metadata and downloads
+- PATH-based execution for static ELF32 user binaries
 - Built-in text editor and calculator
 - Playable id-Software DOOM port (WAD file required)
 - Live installer that copies MyDOS and Limine boot files to a disk (I am very proud of this one!)
@@ -42,10 +44,11 @@ Shell:
 - `help [command]`
 - `clear [-dl|--draw-logo]`
 - `echo [-c <color>|--color <color>] <text>`
-- `set [PS1[=prompt]]` (customize the prompt with `\h`, `\u`, `\w`, `\W`, `\$`)
+- `set [PS1[=prompt]|PATH[=dirs]]` (customize the prompt and user binary search path)
 - `change-theme <default|matrix|ocean|sunset>`
 - `loadkeys <us|de|fr|status>` (the main layout is German because thats my layout!)
 - `dhcp [renew|status]`, `ping <ipv4-address> [count]`
+- `flint <sync|search|info|install|fetch|source>`
 - `date [-t|--time] [-d|--date] [-12|--12h]`
 - `uptime [-p|--pretty] [-s|--seconds]`
 - `fetch`, `shlogo`, `larry`, `beep`
@@ -64,11 +67,33 @@ System:
 - `rbt` reboots; `shtdwn` halts the CPU (a VM may not power off)
 - `kp` deliberately triggers a kernel panic for testing
 
+## Flint and user binaries
+
+`flint` downloads Gentoo x86 binpackage metadata over plain HTTP from
+`distfiles.gentoo.org`. Run this before searching or installing:
+
+```text
+flint sync
+flint search nano
+flint info app-editors/nano-8.6-r1
+flint install app-editors/nano-8.6-r1
+```
+
+The index is cached at `0:/FLINT/PACKAGES.TXT`, and downloaded packages are
+stored under `0:/FLINT/PACKAGES/`. MyDOS can download Gentoo `.gpkg.tar` files
+but cannot unpack or merge them yet. HTTPS is not supported.
+
+The shell also searches `PATH` (default `.:/BIN:/USR/BIN`) for static ELF32
+binaries. `make doom-disk` copies the sample `hello.elf` to `0:/BIN/HELLO.ELF`;
+run it with `hello` or `HELLO.ELF`. User binaries are loaded in ring 0 without
+process isolation and receive a small API table as the third `main` argument.
+
 ## Source layout
 
 - `src/kernel/cmd/` - one file per shell command, plus the command table/dispatcher
-- `src/kernel/net/` - networking core, DHCP, ARP/ICMP, PCI, and NIC drivers
-- `src/kernel/shell/` - shell input/line editing and the `PS1` prompt renderer
+- `src/kernel/net/` - networking core, DHCP, ARP/ICMP, DNS, TCP, HTTP, PCI, and NIC drivers
+- `src/kernel/elf/` - static ELF32 loader for user binaries
+- `src/kernel/shell/` - shell input/line editing, PATH lookup, and the `PS1` prompt renderer
 - `src/kernel/drivers/` - VGA, keyboard, RTC, AHCI, and PC speaker drivers
 - `src/programs/` - standalone programs such as the editor and calculator
 - `src/programs/doom/` - id-Software DOOM 1.10 source plus the MyDOS platform port
@@ -169,9 +194,9 @@ the shell immediately.
 
 - Save DOOM settings and configuration back to the FAT disk
 - Add sound and mouse support
-- Improve DOOM startup and rendering performance
+- Unpack and merge Gentoo `.gpkg.tar` packages in MyDOS
+- Add process isolation for user ELF binaries
 - Test on real hardware and improve hardware detection
-- Add TCP, DNS, and HTTP support
 - Add automated CI builds and ISO release artifacts
 
 ## Clean up the build files

@@ -19,6 +19,7 @@ static const cmd_entry_t commands[] = {
     {"doom", cmd_doom},
     {"echo", cmd_echo},
     {"fetch", cmd_fetch},
+    {"flint", cmd_flint},
     {"help", cmd_help},
     {"kp", cmd_kp},
     {"larry", cmd_larry},

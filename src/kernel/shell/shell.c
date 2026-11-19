@@ -1,5 +1,6 @@
 #include <mydos.h>
 #include <cmd/cmd.h>
+#include <shell/external.h>
 #include <shell/prompt.h>
 
 void shell_run(unsigned int mbi, int cursor_y) {
@@ -52,10 +53,13 @@ void shell_run(unsigned int mbi, int cursor_y) {
 
             scrl(&cursor_y);
 
-            if (cmd[0] != '\0' && !cmd_run(cmd, args, &cursor_y)) {
-                print("shell: unknown command, try again or run 'help' for assistance",
-                      RED, 0, cursor_y);
-                scrl(&cursor_y);
+            if (cmd[0] != '\0') {
+                if (!cmd_run(cmd, args, &cursor_y) &&
+                    !shell_run_external(cmd, args, &cursor_y)) {
+                    print("shell: unknown command, try again or run 'help' for assistance",
+                          RED, 0, cursor_y);
+                    scrl(&cursor_y);
+                }
             }
 
             cursor_x = 0;

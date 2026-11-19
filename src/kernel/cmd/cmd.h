@@ -26,6 +26,7 @@ void cmd_ping(char *args, int *cursor_y);
 void cmd_echo(char *args, int *cursor_y);
 void cmd_set(char *args, int *cursor_y);
 void cmd_fetch(char *args, int *cursor_y);
+void cmd_flint(char *args, int *cursor_y);
 void cmd_date(char *args, int *cursor_y);
 void cmd_doom(char *args, int *cursor_y);
 void cmd_uptime(char *args, int *cursor_y);

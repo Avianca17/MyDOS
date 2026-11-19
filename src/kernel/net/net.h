@@ -45,6 +45,8 @@ int net_arp_resolve(uint32_t address, uint8_t mac[6],
                     unsigned int timeout_seconds);
 int net_ping(uint32_t address, uint16_t sequence,
              unsigned int timeout_seconds, net_ping_reply_t *reply);
+int net_dns_resolve(const char *hostname, uint32_t *address);
+int net_http_get_file(const char *url, const char *path);
 void net_format_ip(uint32_t address, char *out);
 int net_parse_ipv4(const char *text, uint32_t *address);
 

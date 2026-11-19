@@ -34,19 +34,23 @@ LIMINE_BOOT_FILES := $(addprefix $(LIMINE_DATA_DIR)/, \
 	limine-bios.sys limine-bios-cd.bin limine-uefi-cd.bin \
 	BOOTX64.EFI BOOTIA32.EFI)
 
-C_SOURCES := $(shell find src -type f -name '*.c' ! -path 'src/fs/littlefs/*' ! -path 'src/fs/fatfs/*' | sort) \
+C_SOURCES := $(shell find src -type f -name '*.c' ! -path 'src/fs/littlefs/*' ! -path 'src/fs/fatfs/*' ! -path 'src/programs/user/*' | sort) \
      src/fs/fatfs/source/ff.c src/fs/fatfs/source/diskio.c src/fs/fatfs/source/ffunicode.c
 ASM_SOURCES := $(shell find src -type f -name '*.asm' | sort)
-LINKER_SCRIPT := $(firstword $(shell find . -type f -name '*.ld' | sort))
+LINKER_SCRIPT := linker.ld
+USER_DIR := src/programs/user
+USER_LD := user.ld
+USER_CFLAGS := -m32 -ffreestanding -fno-pie -fno-stack-protector -Wall -Wextra -mno-sse -mno-sse2 -mfpmath=387
+USER_BINARIES := $(BUILD_DIR)/bin/hello.elf
 
 C_OBJECTS := $(patsubst src/%.c,$(BUILD_DIR)/%.o,$(C_SOURCES))
 ASM_OBJECTS := $(patsubst src/%.asm,$(BUILD_DIR)/%.o,$(ASM_SOURCES))
 
 -include $(C_OBJECTS:.o=.d)
 
-.PHONY: all iso run limine-iso run-limine doom-disk clean
+.PHONY: all iso run limine-iso run-limine doom-disk user-binaries clean
 
-all: $(ISO_IMAGE)
+all: $(ISO_IMAGE) user-binaries
 
 iso: $(ISO_IMAGE)
 
@@ -67,6 +71,12 @@ $(BUILD_DIR)/%.o: src/%.c
 $(BUILD_DIR)/%.o: src/%.asm
 	@mkdir -p $(dir $@)
 	$(AS) -f elf32 $< -o $@
+
+user-binaries: $(USER_BINARIES)
+
+$(BUILD_DIR)/bin/%.elf: $(USER_DIR)/%.c $(USER_LD)
+	@mkdir -p $(dir $@)
+	$(CC) $(CPPFLAGS) $(USER_CFLAGS) -nostdlib -static -Wl,-T,$(USER_LD) $< -o $@
 
 $(KERNEL): $(ASM_OBJECTS) $(C_OBJECTS) $(LINKER_SCRIPT)
 	@mkdir -p $(dir $@)
@@ -121,7 +131,7 @@ $(ISO_IMAGE): Makefile $(KERNEL) iso/limine.conf iso/limine-installed.conf \
 		-o "$@" "$$root"; \
 	$(LIMINE) bios-install "$@"
 
-doom-disk:
+doom-disk: user-binaries
 	@set -eu; \
 	if [ ! -f "$(DOOM_WAD)" ]; then \
 		echo "Put a WAD at $(DOOM_WAD) or run: make doom-disk DOOM_WAD=path/to.wad"; \
@@ -130,7 +140,9 @@ doom-disk:
 	rm -f "$(DOOM_DISK)"; \
 	truncate -s "$(DOOM_DISK_SIZE)" "$(DOOM_DISK)"; \
 	mformat -i "$(DOOM_DISK)" -t 2048 -h 4 -n 32 -v MYDOS ::; \
-	mcopy -i "$(DOOM_DISK)" "$(DOOM_WAD)" ::/
+	mmd -i "$(DOOM_DISK)" ::/BIN; \
+	mcopy -i "$(DOOM_DISK)" "$(DOOM_WAD)" ::/; \
+	mcopy -i "$(DOOM_DISK)" $(BUILD_DIR)/bin/hello.elf ::/BIN/HELLO.ELF
 
 run: $(ISO_IMAGE)
 	$(QEMU) -cdrom $(ISO_IMAGE) $(QEMU_BOOT_ARGS) $(QEMU_AUDIO_ARGS) $(QEMU_STORAGE_ARGS) $(QEMU_NET_ARGS)
