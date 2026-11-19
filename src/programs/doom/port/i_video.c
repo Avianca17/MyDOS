@@ -7,7 +7,27 @@
 #include "v_video.h"
 #include "doom_port.h"
 
+#define MAX_PENDING_KEYUPS 16
+
 static int scancode_keys[128];
+
+typedef struct {
+    int key;
+    int release_tic;
+} pending_keyup_t;
+
+static pending_keyup_t pending_keyups[MAX_PENDING_KEYUPS];
+static int pending_keyup_count;
+static int quit_ctrl_down;
+
+static void post_key_event(int pressed, int mapped) {
+    event_t event;
+    event.type = pressed ? ev_keydown : ev_keyup;
+    event.data1 = mapped;
+    event.data2 = 0;
+    event.data3 = 0;
+    D_PostEvent(&event);
+}
 
 static int key_from_event(int key, int scancode) {
     if (key == DOOM_PORT_KEY_SHIFT) return KEY_RSHIFT;
@@ -82,12 +102,31 @@ void I_StartTic(void) {
     int key;
     int pressed;
     int scancode;
+    int now = I_GetTime();
+
+    for (int i = 0; i < pending_keyup_count;) {
+        if (now >= pending_keyups[i].release_tic) {
+            post_key_event(0, pending_keyups[i].key);
+            pending_keyups[i] = pending_keyups[pending_keyup_count - 1];
+            pending_keyup_count--;
+        } else {
+            i++;
+        }
+    }
 
     while (doom_port_key_poll(&key, &pressed, &scancode)) {
         int mapped = 0;
 
         if (scancode < 0 || scancode >= 128) {
             continue;
+        }
+
+        if (key == DOOM_PORT_KEY_CTRL) {
+            quit_ctrl_down = pressed;
+        }
+        if (pressed && (scancode == 0x58 || (quit_ctrl_down && scancode == 0x10))) {
+            I_Quit();
+            return;
         }
 
         if (pressed) {
@@ -107,11 +146,12 @@ void I_StartTic(void) {
             continue;
         }
 
-        event_t event;
-        event.type = pressed ? ev_keydown : ev_keyup;
-        event.data1 = mapped;
-        event.data2 = 0;
-        event.data3 = 0;
-        D_PostEvent(&event);
+        if (!pressed && pending_keyup_count < MAX_PENDING_KEYUPS) {
+            pending_keyups[pending_keyup_count].key = mapped;
+            pending_keyups[pending_keyup_count].release_tic = now + 1;
+            pending_keyup_count++;
+        } else {
+            post_key_event(pressed, mapped);
+        }
     }
 }

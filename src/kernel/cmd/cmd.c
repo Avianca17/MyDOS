@@ -36,6 +36,7 @@ static const cmd_entry_t commands[] = {
     {"rbt", cmd_rbt},
     {"read", cmd_read},
     {"rm", cmd_rm},
+    {"set", cmd_set},
     {"shlogo", cmd_shlogo},
     {"shtdwn", cmd_shtdwn},
     {"uptime", cmd_uptime},

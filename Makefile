@@ -13,7 +13,13 @@ TAR ?= tar
 DD ?= dd
 QEMU ?= qemu-system-i386
 QEMU_AUDIO_ARGS ?= -audiodev pa,id=pcspk -machine pc,pcspk-audiodev=pcspk
-QEMU_STORAGE_ARGS ?=
+QEMU_BOOT_ARGS ?= -boot order=d,menu=off
+DOOM_DISK ?= doom.img
+DOOM_WAD ?= freedoom1.wad
+DOOM_DISK_SIZE ?= 134217728
+comma := ,
+QEMU_AHCI_ARGS = -device ahci,id=mydos-ahci -drive if=none,id=doomdisk,file=$(DOOM_DISK),format=raw -device ide-hd,drive=doomdisk,bus=mydos-ahci.0
+QEMU_STORAGE_ARGS ?= $(if $(wildcard $(DOOM_DISK)),$(QEMU_AHCI_ARGS),)
 QEMU_NET_ARGS ?= -nic user,model=e1000
 LIMINE ?= limine
 LIMINE_DATA_DIR ?= $(shell $(LIMINE) --print-datadir)
@@ -38,7 +44,7 @@ ASM_OBJECTS := $(patsubst src/%.asm,$(BUILD_DIR)/%.o,$(ASM_SOURCES))
 
 -include $(C_OBJECTS:.o=.d)
 
-.PHONY: all iso run limine-iso run-limine clean
+.PHONY: all iso run limine-iso run-limine doom-disk clean
 
 all: $(ISO_IMAGE)
 
@@ -115,8 +121,19 @@ $(ISO_IMAGE): Makefile $(KERNEL) iso/limine.conf iso/limine-installed.conf \
 		-o "$@" "$$root"; \
 	$(LIMINE) bios-install "$@"
 
+doom-disk:
+	@set -eu; \
+	if [ ! -f "$(DOOM_WAD)" ]; then \
+		echo "Put a WAD at $(DOOM_WAD) or run: make doom-disk DOOM_WAD=path/to.wad"; \
+		exit 1; \
+	fi; \
+	rm -f "$(DOOM_DISK)"; \
+	truncate -s "$(DOOM_DISK_SIZE)" "$(DOOM_DISK)"; \
+	mformat -i "$(DOOM_DISK)" -t 2048 -h 4 -n 32 -v MYDOS ::; \
+	mcopy -i "$(DOOM_DISK)" "$(DOOM_WAD)" ::/
+
 run: $(ISO_IMAGE)
-	$(QEMU) -cdrom $(ISO_IMAGE) $(QEMU_AUDIO_ARGS) $(QEMU_STORAGE_ARGS) $(QEMU_NET_ARGS)
+	$(QEMU) -cdrom $(ISO_IMAGE) $(QEMU_BOOT_ARGS) $(QEMU_AUDIO_ARGS) $(QEMU_STORAGE_ARGS) $(QEMU_NET_ARGS)
 
 run-limine: run
 

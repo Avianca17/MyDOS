@@ -75,6 +75,22 @@ static int active_screen_height = VGA_HEIGHT;
 static int cursor_x = -1;
 static int cursor_y = -1;
 
+#define PRESENT_MAX_WIDTH 640
+#define PRESENT_MAX_HEIGHT 400
+
+static uint16_t present_x_map[PRESENT_MAX_WIDTH];
+static uint16_t present_y_map[PRESENT_MAX_HEIGHT];
+static uint32_t present_row_offsets[PRESENT_MAX_HEIGHT];
+static uint32_t present_target_width;
+static uint32_t present_target_height;
+static uint32_t present_fb_width;
+static uint32_t present_fb_height;
+static uint32_t present_fb_pitch;
+static uint8_t present_fb_bpp;
+static int present_source_width;
+static int present_source_height;
+static int present_ready;
+
 static unsigned char theme_text = WHITE;
 static unsigned char theme_muted = LIGHT_GREY;
 static unsigned char theme_error = RED;
@@ -203,51 +219,96 @@ void vga_framebuffer_set_indexed_palette(const unsigned char *palette) {
     }
 }
 
+static void present_build_cache(int width, int height) {
+    uint32_t scale = 1;
+    if (framebuffer.width >= PRESENT_MAX_WIDTH &&
+        framebuffer.height >= PRESENT_MAX_HEIGHT) {
+        scale = 2;
+    }
+
+    present_target_width = (uint32_t)width * scale;
+    present_target_height = (uint32_t)height * scale;
+    if (present_target_width > PRESENT_MAX_WIDTH) {
+        present_target_width = PRESENT_MAX_WIDTH;
+    }
+    if (present_target_height > PRESENT_MAX_HEIGHT) {
+        present_target_height = PRESENT_MAX_HEIGHT;
+    }
+    if (present_target_width > framebuffer.width) {
+        present_target_width = framebuffer.width;
+    }
+    if (present_target_height > framebuffer.height) {
+        present_target_height = framebuffer.height;
+    }
+    if (present_target_width == 0 || present_target_height == 0) {
+        present_ready = 0;
+        return;
+    }
+
+    uint32_t x_offset = (framebuffer.width - present_target_width) / 2;
+    uint32_t y_offset = (framebuffer.height - present_target_height) / 2;
+
+    for (uint32_t x = 0; x < present_target_width; x++) {
+        present_x_map[x] = (uint16_t)(x * (uint32_t)width / present_target_width);
+    }
+    for (uint32_t y = 0; y < present_target_height; y++) {
+        present_y_map[y] =
+            (uint16_t)(y * (uint32_t)height / present_target_height);
+        present_row_offsets[y] =
+            (y_offset + y) * framebuffer.pitch + x_offset * framebuffer.bytes_per_pixel;
+    }
+
+    present_fb_width = framebuffer.width;
+    present_fb_height = framebuffer.height;
+    present_fb_pitch = framebuffer.pitch;
+    present_fb_bpp = framebuffer.bytes_per_pixel;
+    present_source_width = width;
+    present_source_height = height;
+    present_ready = 1;
+}
+
 void vga_framebuffer_present_indexed(const unsigned char *pixels, int width,
                                      int height) {
     if (!framebuffer_enabled || pixels == 0 || width <= 0 || height <= 0) {
         return;
     }
 
-    uint32_t target_height = framebuffer.height;
-    uint32_t width_limit = framebuffer.width * 3 / 4;
-    if (width_limit < target_height) {
-        target_height = width_limit;
+    if (!present_ready || present_fb_width != framebuffer.width ||
+        present_fb_height != framebuffer.height ||
+        present_fb_pitch != framebuffer.pitch ||
+        present_fb_bpp != framebuffer.bytes_per_pixel ||
+        present_source_width != width || present_source_height != height) {
+        present_build_cache(width, height);
     }
-    if (target_height > 720) {
-        target_height = 720;
-    }
-    if (target_height == 0) {
+    if (!present_ready) {
         return;
     }
 
-    uint32_t target_width = target_height * 4 / 3;
-    if (target_width > framebuffer.width) {
-        target_width = framebuffer.width;
-        target_height = target_width * 3 / 4;
-    }
-    if (target_width == 0 || target_height == 0) {
-        return;
-    }
+    for (uint32_t y = 0; y < present_target_height; y++) {
+        const unsigned char *source =
+            pixels + (uintptr_t)present_y_map[y] * (uint32_t)width;
+        uintptr_t row = framebuffer.address + present_row_offsets[y];
 
-    uint32_t x_offset = (framebuffer.width - target_width) / 2;
-    uint32_t y_offset = (framebuffer.height - target_height) / 2;
-
-    for (uint32_t y = 0; y < target_height; y++) {
-        uint32_t source_y = y * (uint32_t)height / target_height;
-        const unsigned char *source = pixels + source_y * (uint32_t)width;
-        volatile uint8_t *destination =
-            (volatile uint8_t *)(framebuffer.address +
-                (uintptr_t)(y_offset + y) * framebuffer.pitch +
-                (uintptr_t)x_offset * framebuffer.bytes_per_pixel);
-
-        for (uint32_t x = 0; x < target_width; x++) {
-            uint32_t source_x = x * (uint32_t)width / target_width;
-            uint32_t color = indexed_palette[source[source_x]];
-            volatile uint8_t *pixel =
-                destination + (uintptr_t)x * framebuffer.bytes_per_pixel;
-            for (uint8_t byte = 0; byte < framebuffer.bytes_per_pixel; byte++) {
-                pixel[byte] = (uint8_t)(color >> (byte * 8));
+        if (framebuffer.bytes_per_pixel == 4) {
+            uint32_t *destination = (uint32_t *)row;
+            for (uint32_t x = 0; x < present_target_width; x++) {
+                destination[x] = indexed_palette[source[present_x_map[x]]];
+            }
+        } else if (framebuffer.bytes_per_pixel == 2) {
+            uint16_t *destination = (uint16_t *)row;
+            for (uint32_t x = 0; x < present_target_width; x++) {
+                destination[x] =
+                    (uint16_t)indexed_palette[source[present_x_map[x]]];
+            }
+        } else {
+            volatile uint8_t *destination = (volatile uint8_t *)row;
+            for (uint32_t x = 0; x < present_target_width; x++) {
+                uint32_t color = indexed_palette[source[present_x_map[x]]];
+                volatile uint8_t *pixel =
+                    destination + (uintptr_t)x * framebuffer.bytes_per_pixel;
+                for (uint8_t byte = 0; byte < framebuffer.bytes_per_pixel; byte++) {
+                    pixel[byte] = (uint8_t)(color >> (byte * 8));
+                }
             }
         }
     }

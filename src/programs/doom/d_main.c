@@ -560,9 +560,20 @@ void D_AddFile (char *file)
 // to determine whether registered/commercial features
 // should be executed (notably loading PWAD's).
 //
+static int wad_name_contains (const char *name, const char *needle)
+{
+    int length = strlen(needle);
+    int index;
+
+    for (index = 0; name[index] ; index++)
+	if (!strncasecmp(name + index, needle, length))
+	    return 1;
+    return 0;
+}
+
 void IdentifyVersion (void)
 {
-
+    int		p;
     char*	doom1wad;
     char*	doomwad;
     char*	doomuwad;
@@ -571,6 +582,8 @@ void IdentifyVersion (void)
     char*	doom2fwad;
     char*	plutoniawad;
     char*	tntwad;
+    char*	freedoom1wad;
+    char*	freedoom2wad;
 
 #ifdef NORMALUNIX
     char *home;
@@ -602,6 +615,12 @@ void IdentifyVersion (void)
 
     tntwad = malloc(strlen(doomwaddir)+1+9+1);
     sprintf(tntwad, "%s/tnt.wad", doomwaddir);
+
+    freedoom1wad = malloc(strlen(doomwaddir)+1+13+1);
+    sprintf(freedoom1wad, "%s/freedoom1.wad", doomwaddir);
+
+    freedoom2wad = malloc(strlen(doomwaddir)+1+13+1);
+    sprintf(freedoom2wad, "%s/freedoom2.wad", doomwaddir);
 
 
     // French stuff.
@@ -655,6 +674,36 @@ void IdentifyVersion (void)
 	return;
     }
 
+    p = M_CheckParm ("-iwad");
+    if (p && p < myargc-1)
+    {
+	char *iwad = myargv[p+1];
+	printf("Using IWAD %s\n", iwad);
+
+	if (wad_name_contains(iwad, "doom2f"))
+	{
+	    gamemode = commercial;
+	    language = french;
+	}
+	else if (wad_name_contains(iwad, "freedoom2") ||
+		 wad_name_contains(iwad, "doom2") ||
+		 wad_name_contains(iwad, "plutonia") ||
+		 wad_name_contains(iwad, "tnt"))
+	    gamemode = commercial;
+	else if (wad_name_contains(iwad, "freedoom1") ||
+		 wad_name_contains(iwad, "doomu"))
+	    gamemode = retail;
+	else if (wad_name_contains(iwad, "doom1"))
+	    gamemode = shareware;
+	else if (wad_name_contains(iwad, "doom"))
+	    gamemode = registered;
+	else
+	    gamemode = indetermined;
+
+	D_AddFile (iwad);
+	return;
+    }
+
     if ( !access (doom2fwad,R_OK) )
     {
 	gamemode = commercial;
@@ -670,6 +719,13 @@ void IdentifyVersion (void)
     {
 	gamemode = commercial;
 	D_AddFile (doom2wad);
+	return;
+    }
+
+    if ( !access (freedoom2wad,R_OK) )
+    {
+	gamemode = commercial;
+	D_AddFile (freedoom2wad);
 	return;
     }
 
@@ -691,6 +747,13 @@ void IdentifyVersion (void)
     {
       gamemode = retail;
       D_AddFile (doomuwad);
+      return;
+    }
+
+    if ( !access (freedoom1wad,R_OK) )
+    {
+      gamemode = retail;
+      D_AddFile (freedoom1wad);
       return;
     }
 

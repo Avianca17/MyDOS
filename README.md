@@ -42,6 +42,7 @@ Shell:
 - `help [command]`
 - `clear [-dl|--draw-logo]`
 - `echo [-c <color>|--color <color>] <text>`
+- `set [PS1[=prompt]]` (customize the prompt with `\h`, `\u`, `\w`, `\W`, `\$`)
 - `change-theme <default|matrix|ocean|sunset>`
 - `loadkeys <us|de|fr|status>` (the main layout is German because thats my layout!)
 - `dhcp [renew|status]`, `ping <ipv4-address> [count]`
@@ -67,7 +68,7 @@ System:
 
 - `src/kernel/cmd/` - one file per shell command, plus the command table/dispatcher
 - `src/kernel/net/` - networking core, DHCP, ARP/ICMP, PCI, and NIC drivers
-- `src/kernel/shell/` - shell input/line editing only
+- `src/kernel/shell/` - shell input/line editing and the `PS1` prompt renderer
 - `src/kernel/drivers/` - VGA, keyboard, RTC, AHCI, and PC speaker drivers
 - `src/programs/` - standalone programs such as the editor and calculator
 - `src/programs/doom/` - id-Software DOOM 1.10 source plus the MyDOS platform port
@@ -146,16 +147,23 @@ make run QEMU_STORAGE_ARGS='-device ich9-ahci,id=ahci -drive if=none,id=sata,fil
 
 ## DOOM
 
-The ISO includes the DOOM engine but does not include a WAD file. Put a legal
-WAD on a FAT disk, boot the ISO, and run:
+The ISO includes the DOOM engine, and the project includes official Freedoom
+0.13.0 game data (`freedoom1.wad`, `freedoom2.wad`). Build the disk and boot:
 
-```text
-doom
-doom -iwad DOOM1.WAD
+```sh
+make doom-disk
+make run
 ```
 
-Freedoom is a good free WAD. DOOM needs a framebuffer, so boot `build/MyDOS.iso`
-through Limine rather than using direct `-kernel` boot. F10 opens the quit menu.
+In MyDOS, run `doom`. Freedoom Phase 1 is used by default; use
+`doom -iwad 4:/FREEDOOM2.WAD` for Phase 2. `make run` attaches `doom.img` to a
+QEMU AHCI controller so MyDOS uses its DMA driver instead of slow IDE PIO. The
+image lives in the project root so `make clean` does not delete it. Override
+with `DOOM_WAD=...`, `DOOM_DISK=...`, or `QEMU_STORAGE_ARGS=...`.
+
+DOOM needs a framebuffer, so boot `build/MyDOS.iso` through Limine rather than
+using direct `-kernel` boot. F10 opens the quit menu; F12 or Ctrl+Q returns to
+the shell immediately.
 
 ## Roadmap
 

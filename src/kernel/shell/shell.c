@@ -1,19 +1,18 @@
 #include <mydos.h>
 #include <cmd/cmd.h>
+#include <shell/prompt.h>
 
 void shell_run(unsigned int mbi, int cursor_y) {
-    int cursor_x = PROMPT_LENGTH;
-
-    print("MyDOS", GREEN, 0, cursor_y);
-    print(":", WHITE, 5, cursor_y);
-    print("[", RED, 6, cursor_y);
-    print("root", LIGHT_RED, 7, cursor_y);
-    print("]", RED, 11, cursor_y);
-    print("#", WHITE, 12, cursor_y);
+    int cursor_x = 0;
+    int prompt_width = shell_prompt_render(cursor_y, &cursor_x);
+    int max_cmd_len = vga_screen_width() - prompt_width - 1;
+    if (max_cmd_len > VGA_MAX_WIDTH)
+        max_cmd_len = VGA_MAX_WIDTH;
+    if (max_cmd_len < 0)
+        max_cmd_len = 0;
     move_cursor(cursor_x, cursor_y);
-    // MyDOS:[root]# _
 
-    char cmd[VGA_MAX_WIDTH - PROMPT_LENGTH + 1];
+    char cmd[VGA_MAX_WIDTH + 1];
     int cmd_len = 0;
 
     cmd_set_mbi(mbi);
@@ -29,7 +28,7 @@ void shell_run(unsigned int mbi, int cursor_y) {
             continue;
 
         if (c == '\b') {
-            if (cursor_x > PROMPT_LENGTH && cmd_len > 0) {
+            if (cursor_x > prompt_width && cmd_len > 0) {
                 cmd_len--;
                 cmd[cmd_len] = '\0';
 
@@ -45,8 +44,8 @@ void shell_run(unsigned int mbi, int cursor_y) {
             char *args = "";
             for (int i = 0; cmd[i] != '\0'; i++) {
                 if (cmd[i] == ' ') {
-                    cmd[i] = '\0';      // Split the command
-                    args = &cmd[i + 1]; // Everything after the space is considered arguments
+                    cmd[i] = '\0';
+                    args = &cmd[i + 1];
                     break;
                 }
             }
@@ -54,31 +53,28 @@ void shell_run(unsigned int mbi, int cursor_y) {
             scrl(&cursor_y);
 
             if (cmd[0] != '\0' && !cmd_run(cmd, args, &cursor_y)) {
-                print("trml: unknown command, try again or run 'help' for assistance",
+                print("shell: unknown command, try again or run 'help' for assistance",
                       RED, 0, cursor_y);
                 scrl(&cursor_y);
             }
 
-            print("MyDOS", GREEN, 0, cursor_y);
-            print(":", WHITE, 5, cursor_y);
-            print("[", RED, 6, cursor_y);
-            print("root", LIGHT_RED, 7, cursor_y);
-            print("]", RED, 11, cursor_y);
-            print("#", WHITE, 12, cursor_y);
-            move_cursor(cursor_x, cursor_y);
+            cursor_x = 0;
+            prompt_width = shell_prompt_render(cursor_y, &cursor_x);
+            max_cmd_len = vga_screen_width() - prompt_width - 1;
+            if (max_cmd_len > VGA_MAX_WIDTH)
+                max_cmd_len = VGA_MAX_WIDTH;
+            if (max_cmd_len < 0)
+                max_cmd_len = 0;
 
-            cursor_x = PROMPT_LENGTH;
             cmd_len = 0;
-
             move_cursor(cursor_x, cursor_y);
         }
 
         else {
-            if (cmd_len < vga_screen_width() - PROMPT_LENGTH) {
+            if (cmd_len < max_cmd_len) {
                 cmd[cmd_len++] = c;
 
                 char str[2] = {c, '\0'};
-
                 print(str, WHITE, cursor_x, cursor_y);
 
                 cursor_x++;

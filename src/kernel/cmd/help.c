@@ -28,7 +28,7 @@ void cmd_help(char *args, int *cursor_y) {
         help_row("| [ SHELL ]                                                                |", YELLOW, cursor_y);
         help_row("|   help            clear           echo           change-theme            |", LIGHT_GREY, cursor_y);
         help_row("|   loadkeys        date            uptime          fetch                  |", LIGHT_GREY, cursor_y);
-        help_row("|   shlogo          beep            larry                                  |", LIGHT_GREY, cursor_y);
+        help_row("|   shlogo          beep            larry           set                    |", LIGHT_GREY, cursor_y);
         help_row("| [ NETWORK ]                                                              |", LIGHT_CYAN, cursor_y);
         help_row("|   dhcp            ping                                                   |", LIGHT_GREY, cursor_y);
         help_row("| [ POWER ]                                                                |", LIGHT_CYAN, cursor_y);
@@ -66,6 +66,16 @@ void cmd_help(char *args, int *cursor_y) {
         scrl(cursor_y);
         print("Print text in a specified color. If no color is specified, white is used.",
               LIGHT_GREY, 0, *cursor_y);
+
+    } else if (strcmp(args, "set") == 0) {
+        print("Usage: set [PS1[=prompt]]", WHITE, 0, *cursor_y);
+        scrl(cursor_y);
+        print("Shows or changes the shell prompt variable PS1.", LIGHT_GREY, 0, *cursor_y);
+        scrl(cursor_y);
+        print("Escapes: \\h host, \\u user, \\w path, \\W folder, \\$ prompt.",
+              LIGHT_GREY, 0, *cursor_y);
+        scrl(cursor_y);
+        print("Example: set PS1=\\h:\\w\\$ ", LIGHT_GREY, 0, *cursor_y);
 
     } else if (strcmp(args, "uptime") == 0) {
         print("Usage: uptime [-p|--pretty] [-s|--seconds]", WHITE, 0, *cursor_y);
