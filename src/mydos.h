@@ -65,6 +65,7 @@ FRESULT fs_format_volume_type(BYTE volume, int fat_version);
 FRESULT make_file(const TCHAR *path);
 FRESULT copy_file(const TCHAR *source_path, const TCHAR *destination_path);
 void cp_file(char *args, int *cursor_y);
+FRESULT copy_path(const TCHAR *source_path, const TCHAR *destination_path);
 FRESULT move_path(const TCHAR *source_path, const TCHAR *destination_path);
 void mv_file(char *args, int *cursor_y);
 FRESULT rm_file(const TCHAR *path);
