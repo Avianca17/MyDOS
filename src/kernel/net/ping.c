@@ -152,8 +152,8 @@ static int ping_send(uint32_t source, uint32_t destination,
     ip->ttl = 64;
     ip->protocol = IP_PROTOCOL_ICMP;
     ip->checksum = 0;
-    ip->source = source;
-    ip->destination = destination;
+    memcpy(&ip->source, &source, 4);
+    memcpy(&ip->destination, &destination, 4);
     ip->checksum = byte_swap16(checksum16((const uint8_t *)ip,
                                           sizeof(ipv4_header_t)));
 

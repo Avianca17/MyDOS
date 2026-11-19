@@ -57,9 +57,9 @@ static int arp_send_request(uint32_t address, const net_device_t *device,
     arp->protocol_length = 4;
     arp->operation = byte_swap16(ARP_REQUEST);
     memcpy(arp->sender_hardware, device->mac, 6);
-    arp->sender_address = lease->ip;
+    memcpy(&arp->sender_address, &lease->ip, 4);
     memset(arp->target_hardware, 0, 6);
-    arp->target_address = address;
+    memcpy(&arp->target_address, &address, 4);
 
     return net_send(arp_frame,
                     (uint16_t)(sizeof(ethernet_header_t) + sizeof(arp_packet_t)));

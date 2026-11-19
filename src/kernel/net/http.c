@@ -6,7 +6,7 @@
 #define HTTP_HOST_MAX 128
 #define HTTP_PATH_MAX 192
 #define HTTP_HEADER_MAX 2048
-#define HTTP_BUFFER_SIZE 1024
+#define HTTP_BUFFER_SIZE NET_MAX_FRAME
 #define HTTP_RECV_TIMEOUT_MS 8000u
 
 typedef struct {
