@@ -1,3 +1,5 @@
 /build/
 /.vscode/
 /src/fs/fatfs/documents/
+/doom.img
+/freedoom*.wad

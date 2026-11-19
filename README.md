@@ -7,6 +7,11 @@ I have not tested it on real hardware yet, so I doubt it boots :/
 
 ![MyDOS running in VirtualBox](image.png)
 
+## Download
+
+Prebuilt ISO releases are available on the
+[Releases page](https://github.com/homu-sys/MyDOS/releases).
+
 ## Features
 
 - Custom kernel 
@@ -14,10 +19,13 @@ I have not tested it on real hardware yet, so I doubt it boots :/
 - Keyboard-only shell with US, German, and French layouts
 - FatFs filesystem support, with FAT32 formatting as the main option but theres FAT12/FAT16 too.
 - ATA/IDE and AHCI SATA disk access
-- DHCP over Intel e1000 and Realtek RTL8139/8129 Ethernet controllers
+- DHCP, ICMP ping, DNS, TCP, and plain HTTP over Intel e1000 and Realtek RTL8139/8129 Ethernet controllers
+- `flint` package manager for Gentoo x86 binpackage metadata and downloads
+- PATH-based execution for static ELF32 user binaries
 - Built-in text editor and calculator
+- Playable id-Software DOOM port (WAD file required)
 - Live installer that copies MyDOS and Limine boot files to a disk (I am very proud of this one!)
-- Networking! 
+- Networking!
 
 ## Boot options
 
@@ -37,9 +45,11 @@ Shell:
 - `help [command]`
 - `clear [-dl|--draw-logo]`
 - `echo [-c <color>|--color <color>] <text>`
+- `set [PS1[=prompt]|PATH[=dirs]]` (customize the prompt and user binary search path)
 - `change-theme <default|matrix|ocean|sunset>`
 - `loadkeys <us|de|fr|status>` (the main layout is German because thats my layout!)
-- `dhcp [renew|status]`
+- `dhcp [renew|status]`, `ping <ipv4-address> [count]`
+- `flint <sync|search|info|install|fetch|source>`
 - `date [-t|--time] [-d|--date] [-12|--12h]`
 - `uptime [-p|--pretty] [-s|--seconds]`
 - `fetch`, `shlogo`, `larry`, `beep`
@@ -54,12 +64,43 @@ Files and disks:
 - `cp <source> <destination>`, `mv <source> <destination>`
 - `lsdrv`
 - `mkfat -f <12|16|32> <drive>:/`
-- `myeditor`, `calc`
+- `myeditor`, `calc`, `doom [options] [wad]`
 
 System:
 
 - `rbt` reboots; `shtdwn` shuts down the VM (Only QEMU for now)
 - `kp` deliberately triggers a kernel panic for testing
+
+## Flint and user binaries
+
+`flint` downloads Gentoo x86 binpackage metadata over plain HTTP from
+`distfiles.gentoo.org`. Run this before searching or installing:
+
+```text
+flint sync
+flint search nano
+flint info app-editors/nano-8.6-r1
+flint install app-editors/nano-8.6-r1
+```
+
+The index is cached at `0:/FLINT/PACKAGES.TXT`, and downloaded packages are
+stored under `0:/FLINT/PACKAGES/`. MyDOS can download Gentoo `.gpkg.tar` files
+but cannot unpack or merge them yet. HTTPS is not supported.
+
+The shell also searches `PATH` (default `.:/BIN:/USR/BIN`) for static ELF32
+binaries. `make doom-disk` copies the sample `hello.elf` to `0:/BIN/HELLO.ELF`;
+run it with `hello` or `HELLO.ELF`. User binaries are loaded in ring 0 without
+process isolation and receive a small API table as the third `main` argument.
+
+## Source layout
+
+- `src/kernel/cmd/` - one file per shell command, plus the command table/dispatcher
+- `src/kernel/net/` - networking core, DHCP, ARP/ICMP, DNS, TCP, HTTP, PCI, and NIC drivers
+- `src/kernel/elf/` - static ELF32 loader for user binaries
+- `src/kernel/shell/` - shell input/line editing, PATH lookup, and the `PS1` prompt renderer
+- `src/kernel/drivers/` - VGA, keyboard, RTC, AHCI, and PC speaker drivers
+- `src/programs/` - standalone programs such as the editor and calculator
+- `src/programs/doom/` - id-Software DOOM 1.10 source plus the MyDOS platform port
 
 ## Installing to a disk
 
@@ -132,6 +173,35 @@ To attach a disposable AHCI disk image:
 qemu-img create -f raw build/sata.img 128M
 make run QEMU_STORAGE_ARGS='-device ich9-ahci,id=ahci -drive if=none,id=sata,file=build/sata.img,format=raw -device ide-hd,drive=sata,bus=ahci.0'
 ```
+
+## DOOM
+
+The ISO includes the DOOM engine, and the project includes official Freedoom
+0.13.0 game data (`freedoom1.wad`, `freedoom2.wad`). Build the disk and boot:
+
+```sh
+make doom-disk
+make run
+```
+
+In MyDOS, run `doom`. Freedoom Phase 1 is used by default; use
+`doom -iwad 4:/FREEDOOM2.WAD` for Phase 2. `make run` attaches `doom.img` to a
+QEMU AHCI controller so MyDOS uses its DMA driver instead of slow IDE PIO. The
+image lives in the project root so `make clean` does not delete it. Override
+with `DOOM_WAD=...`, `DOOM_DISK=...`, or `QEMU_STORAGE_ARGS=...`.
+
+DOOM needs a framebuffer, so boot `build/MyDOS.iso` through Limine rather than
+using direct `-kernel` boot. F10 opens the quit menu; F12 or Ctrl+Q returns to
+the shell immediately.
+
+## Roadmap
+
+- Save DOOM settings and configuration back to the FAT disk
+- Add sound and mouse support
+- Unpack and merge Gentoo `.gpkg.tar` packages in MyDOS
+- Add process isolation for user ELF binaries
+- Test on real hardware and improve hardware detection
+- Add automated CI builds and ISO release artifacts
 
 ## Clean up the build files
 

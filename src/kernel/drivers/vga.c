@@ -68,11 +68,28 @@ static const uint8_t vga_palette[16][3] = {
 static uint16_t screen_cells[VGA_MAX_WIDTH * VGA_MAX_HEIGHT];
 static framebuffer_t framebuffer;
 static uint32_t framebuffer_palette[16];
+static uint32_t indexed_palette[256];
 static int framebuffer_enabled;
 static int active_screen_width = VGA_WIDTH;
 static int active_screen_height = VGA_HEIGHT;
 static int cursor_x = -1;
 static int cursor_y = -1;
+
+#define PRESENT_MAX_WIDTH 640
+#define PRESENT_MAX_HEIGHT 400
+
+static uint16_t present_x_map[PRESENT_MAX_WIDTH];
+static uint16_t present_y_map[PRESENT_MAX_HEIGHT];
+static uint32_t present_row_offsets[PRESENT_MAX_HEIGHT];
+static uint32_t present_target_width;
+static uint32_t present_target_height;
+static uint32_t present_fb_width;
+static uint32_t present_fb_height;
+static uint32_t present_fb_pitch;
+static uint8_t present_fb_bpp;
+static int present_source_width;
+static int present_source_height;
+static int present_ready;
 
 static unsigned char theme_text = WHITE;
 static unsigned char theme_muted = LIGHT_GREY;
@@ -184,6 +201,117 @@ int vga_screen_width(void) {
 
 int vga_screen_height(void) {
     return active_screen_height;
+}
+
+int vga_framebuffer_available(void) {
+    return framebuffer_enabled;
+}
+
+void vga_framebuffer_set_indexed_palette(const unsigned char *palette) {
+    if (!framebuffer_enabled || palette == 0) {
+        return;
+    }
+
+    for (unsigned int index = 0; index < 256; index++) {
+        indexed_palette[index] =
+            pack_color(palette[index * 3], palette[index * 3 + 1],
+                       palette[index * 3 + 2]);
+    }
+}
+
+static void present_build_cache(int width, int height) {
+    uint32_t scale = 1;
+    if (framebuffer.width >= PRESENT_MAX_WIDTH &&
+        framebuffer.height >= PRESENT_MAX_HEIGHT) {
+        scale = 2;
+    }
+
+    present_target_width = (uint32_t)width * scale;
+    present_target_height = (uint32_t)height * scale;
+    if (present_target_width > PRESENT_MAX_WIDTH) {
+        present_target_width = PRESENT_MAX_WIDTH;
+    }
+    if (present_target_height > PRESENT_MAX_HEIGHT) {
+        present_target_height = PRESENT_MAX_HEIGHT;
+    }
+    if (present_target_width > framebuffer.width) {
+        present_target_width = framebuffer.width;
+    }
+    if (present_target_height > framebuffer.height) {
+        present_target_height = framebuffer.height;
+    }
+    if (present_target_width == 0 || present_target_height == 0) {
+        present_ready = 0;
+        return;
+    }
+
+    uint32_t x_offset = (framebuffer.width - present_target_width) / 2;
+    uint32_t y_offset = (framebuffer.height - present_target_height) / 2;
+
+    for (uint32_t x = 0; x < present_target_width; x++) {
+        present_x_map[x] = (uint16_t)(x * (uint32_t)width / present_target_width);
+    }
+    for (uint32_t y = 0; y < present_target_height; y++) {
+        present_y_map[y] =
+            (uint16_t)(y * (uint32_t)height / present_target_height);
+        present_row_offsets[y] =
+            (y_offset + y) * framebuffer.pitch + x_offset * framebuffer.bytes_per_pixel;
+    }
+
+    present_fb_width = framebuffer.width;
+    present_fb_height = framebuffer.height;
+    present_fb_pitch = framebuffer.pitch;
+    present_fb_bpp = framebuffer.bytes_per_pixel;
+    present_source_width = width;
+    present_source_height = height;
+    present_ready = 1;
+}
+
+void vga_framebuffer_present_indexed(const unsigned char *pixels, int width,
+                                     int height) {
+    if (!framebuffer_enabled || pixels == 0 || width <= 0 || height <= 0) {
+        return;
+    }
+
+    if (!present_ready || present_fb_width != framebuffer.width ||
+        present_fb_height != framebuffer.height ||
+        present_fb_pitch != framebuffer.pitch ||
+        present_fb_bpp != framebuffer.bytes_per_pixel ||
+        present_source_width != width || present_source_height != height) {
+        present_build_cache(width, height);
+    }
+    if (!present_ready) {
+        return;
+    }
+
+    for (uint32_t y = 0; y < present_target_height; y++) {
+        const unsigned char *source =
+            pixels + (uintptr_t)present_y_map[y] * (uint32_t)width;
+        uintptr_t row = framebuffer.address + present_row_offsets[y];
+
+        if (framebuffer.bytes_per_pixel == 4) {
+            uint32_t *destination = (uint32_t *)row;
+            for (uint32_t x = 0; x < present_target_width; x++) {
+                destination[x] = indexed_palette[source[present_x_map[x]]];
+            }
+        } else if (framebuffer.bytes_per_pixel == 2) {
+            uint16_t *destination = (uint16_t *)row;
+            for (uint32_t x = 0; x < present_target_width; x++) {
+                destination[x] =
+                    (uint16_t)indexed_palette[source[present_x_map[x]]];
+            }
+        } else {
+            volatile uint8_t *destination = (volatile uint8_t *)row;
+            for (uint32_t x = 0; x < present_target_width; x++) {
+                uint32_t color = indexed_palette[source[present_x_map[x]]];
+                volatile uint8_t *pixel =
+                    destination + (uintptr_t)x * framebuffer.bytes_per_pixel;
+                for (uint8_t byte = 0; byte < framebuffer.bytes_per_pixel; byte++) {
+                    pixel[byte] = (uint8_t)(color >> (byte * 8));
+                }
+            }
+        }
+    }
 }
 
 static void framebuffer_pixel(int x, int y, uint32_t color) {

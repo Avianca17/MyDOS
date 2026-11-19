@@ -290,13 +290,13 @@ static DRESULT secondary_transfer(BYTE pdrv, BYTE *read_buffer,
 		uint32_t sectors = ahci_sector_count(disk);
 		if (ahci_status[disk] != 0) return RES_NOTRDY;
 		if (sector >= sectors || count > sectors - sector) return RES_PARERR;
+		if (!write) {
+			return ahci_read_multi(disk, sector, read_buffer, count)
+				? RES_OK : RES_ERROR;
+		}
 		while (count-- != 0u) {
-			int ok = write
-				? ahci_write(disk, sector, write_buffer)
-				: ahci_read(disk, sector, read_buffer);
-			if (!ok) return RES_ERROR;
-			if (write) write_buffer += 512;
-			else read_buffer += 512;
+			if (!ahci_write(disk, sector, write_buffer)) return RES_ERROR;
+			write_buffer += 512;
 			sector++;
 		}
 		return RES_OK;

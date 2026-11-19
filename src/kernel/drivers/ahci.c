@@ -48,6 +48,7 @@
 #define ATA_CMD_FLUSH_CACHE 0xE7
 #define ATA_LBA28_SECTORS 0x10000000u
 #define AHCI_TIMEOUT 10000000u
+#define AHCI_MAX_TRANSFER_SECTORS 64
 
 typedef struct __attribute__((packed)) {
 	uint32_t options;
@@ -89,6 +90,8 @@ static ahci_received_fis_t received_fis[AHCI_MAX_PORTS];
 static ahci_command_table_t command_tables[AHCI_MAX_PORTS]
 	__attribute__((aligned(128)));
 static uint8_t transfer_buffer[512] __attribute__((aligned(2)));
+static uint8_t dma_buffer[AHCI_MAX_TRANSFER_SECTORS * 512]
+	__attribute__((aligned(16)));
 
 static void io_wait(void) {
 	__asm__ volatile ("outb %%al, $0x80" : : "a"(0));
@@ -375,6 +378,31 @@ static int ahci_transfer(unsigned int disk, uint32_t sector, void *buffer, int w
 
 int ahci_read(unsigned int disk, uint32_t sector, void *buffer) {
 	return ahci_transfer(disk, sector, buffer, 0);
+}
+
+int ahci_read_multi(unsigned int disk, uint32_t sector, void *buffer,
+                    unsigned int count) {
+	uint8_t *out = (uint8_t *)buffer;
+
+	if (disk >= disk_total || buffer == 0 || count == 0) return 0;
+	if ((uint64_t)sector + count > disk_sectors[disk]) return 0;
+
+	while (count != 0) {
+		unsigned int chunk = count > AHCI_MAX_TRANSFER_SECTORS
+			? AHCI_MAX_TRANSFER_SECTORS : count;
+		uint8_t command = (uint64_t)sector + chunk <= ATA_LBA28_SECTORS
+			? ATA_CMD_READ_DMA : ATA_CMD_READ_DMA_EXT;
+
+		if (!issue_command(disk_ports[disk], command, sector,
+		                   (uint16_t)chunk, dma_buffer, 0)) {
+			return 0;
+		}
+		memcpy(out, dma_buffer, chunk * 512);
+		out += chunk * 512;
+		sector += chunk;
+		count -= chunk;
+	}
+	return 1;
 }
 
 int ahci_write(unsigned int disk, uint32_t sector, const void *buffer) {

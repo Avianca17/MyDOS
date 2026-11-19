@@ -13,7 +13,13 @@ TAR ?= tar
 DD ?= dd
 QEMU ?= qemu-system-i386
 QEMU_AUDIO_ARGS ?= -audiodev pa,id=pcspk -machine pc,pcspk-audiodev=pcspk
-QEMU_STORAGE_ARGS ?=
+QEMU_BOOT_ARGS ?= -boot order=d,menu=off
+DOOM_DISK ?= doom.img
+DOOM_WAD ?= freedoom1.wad
+DOOM_DISK_SIZE ?= 134217728
+comma := ,
+QEMU_AHCI_ARGS = -device ahci,id=mydos-ahci -drive if=none,id=doomdisk,file=$(DOOM_DISK),format=raw -device ide-hd,drive=doomdisk,bus=mydos-ahci.0
+QEMU_STORAGE_ARGS ?= $(if $(wildcard $(DOOM_DISK)),$(QEMU_AHCI_ARGS),)
 QEMU_NET_ARGS ?= -nic user,model=e1000
 LIMINE ?= limine
 LIMINE_DATA_DIR ?= $(shell $(LIMINE) --print-datadir)
@@ -21,27 +27,42 @@ LIMINE_DATA_DIR ?= $(shell $(LIMINE) --print-datadir)
 CFLAGS := -m32 -ffreestanding -fno-pie -fno-stack-protector -Wall -Wextra -MMD -MP -mno-sse -mno-sse2 -mfpmath=387
 CPPFLAGS := -I src -I src/kernel -I src/lib -I src/fs/fatfs/source -I src/programs/myeditor
 
+DOOM_DIR := src/programs/doom
+DOOM_CPPFLAGS := -I $(DOOM_DIR)/port -I $(DOOM_DIR) -DNORMALUNIX -include alloca.h
+
 LIMINE_BOOT_FILES := $(addprefix $(LIMINE_DATA_DIR)/, \
 	limine-bios.sys limine-bios-cd.bin limine-uefi-cd.bin \
 	BOOTX64.EFI BOOTIA32.EFI)
 
-C_SOURCES := $(shell find src -type f -name '*.c' ! -path 'src/fs/littlefs/*' ! -path 'src/fs/fatfs/*' | sort) \
+C_SOURCES := $(shell find src -type f -name '*.c' ! -path 'src/fs/littlefs/*' ! -path 'src/fs/fatfs/*' ! -path 'src/programs/user/*' | sort) \
      src/fs/fatfs/source/ff.c src/fs/fatfs/source/diskio.c src/fs/fatfs/source/ffunicode.c
 ASM_SOURCES := $(shell find src -type f -name '*.asm' | sort)
-LINKER_SCRIPT := $(firstword $(shell find . -type f -name '*.ld' | sort))
+LINKER_SCRIPT := linker.ld
+USER_DIR := src/programs/user
+USER_LD := user.ld
+USER_CFLAGS := -m32 -ffreestanding -fno-pie -fno-stack-protector -Wall -Wextra -mno-sse -mno-sse2 -mfpmath=387
+USER_BINARIES := $(BUILD_DIR)/bin/hello.elf
 
 C_OBJECTS := $(patsubst src/%.c,$(BUILD_DIR)/%.o,$(C_SOURCES))
 ASM_OBJECTS := $(patsubst src/%.asm,$(BUILD_DIR)/%.o,$(ASM_SOURCES))
 
 -include $(C_OBJECTS:.o=.d)
 
-.PHONY: all iso run limine-iso run-limine clean
+.PHONY: all iso run limine-iso run-limine doom-disk user-binaries clean
 
-all: $(ISO_IMAGE)
+all: $(ISO_IMAGE) user-binaries
 
 iso: $(ISO_IMAGE)
 
 limine-iso: $(ISO_IMAGE)
+
+$(BUILD_DIR)/programs/doom/port/%.o: $(DOOM_DIR)/port/%.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CPPFLAGS) $(DOOM_CPPFLAGS) $(CFLAGS) -std=gnu11 -c $< -o $@
+
+$(BUILD_DIR)/programs/doom/%.o: $(DOOM_DIR)/%.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CPPFLAGS) $(DOOM_CPPFLAGS) $(CFLAGS) -std=gnu89 -w -c $< -o $@
 
 $(BUILD_DIR)/%.o: src/%.c
 	@mkdir -p $(dir $@)
@@ -50,6 +71,12 @@ $(BUILD_DIR)/%.o: src/%.c
 $(BUILD_DIR)/%.o: src/%.asm
 	@mkdir -p $(dir $@)
 	$(AS) -f elf32 $< -o $@
+
+user-binaries: $(USER_BINARIES)
+
+$(BUILD_DIR)/bin/%.elf: $(USER_DIR)/%.c $(USER_LD)
+	@mkdir -p $(dir $@)
+	$(CC) $(CPPFLAGS) $(USER_CFLAGS) -nostdlib -static -Wl,-T,$(USER_LD) $< -o $@
 
 $(KERNEL): $(ASM_OBJECTS) $(C_OBJECTS) $(LINKER_SCRIPT)
 	@mkdir -p $(dir $@)
@@ -104,8 +131,21 @@ $(ISO_IMAGE): Makefile $(KERNEL) iso/limine.conf iso/limine-installed.conf \
 		-o "$@" "$$root"; \
 	$(LIMINE) bios-install "$@"
 
+doom-disk: user-binaries
+	@set -eu; \
+	if [ ! -f "$(DOOM_WAD)" ]; then \
+		echo "Put a WAD at $(DOOM_WAD) or run: make doom-disk DOOM_WAD=path/to.wad"; \
+		exit 1; \
+	fi; \
+	rm -f "$(DOOM_DISK)"; \
+	truncate -s "$(DOOM_DISK_SIZE)" "$(DOOM_DISK)"; \
+	mformat -i "$(DOOM_DISK)" -t 2048 -h 4 -n 32 -v MYDOS ::; \
+	mmd -i "$(DOOM_DISK)" ::/BIN; \
+	mcopy -i "$(DOOM_DISK)" "$(DOOM_WAD)" ::/; \
+	mcopy -i "$(DOOM_DISK)" $(BUILD_DIR)/bin/hello.elf ::/BIN/HELLO.ELF
+
 run: $(ISO_IMAGE)
-	$(QEMU) -cdrom $(ISO_IMAGE) $(QEMU_AUDIO_ARGS) $(QEMU_STORAGE_ARGS) $(QEMU_NET_ARGS)
+	$(QEMU) -cdrom $(ISO_IMAGE) $(QEMU_BOOT_ARGS) $(QEMU_AUDIO_ARGS) $(QEMU_STORAGE_ARGS) $(QEMU_NET_ARGS)
 
 run-limine: run
 
