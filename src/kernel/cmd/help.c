@@ -178,9 +178,9 @@ void cmd_help(char *args, int *cursor_y) {
               LIGHT_GREY, 0, *cursor_y);
 
     } else if (strcmp(args, "cp") == 0) {
-        print("Usage: cp <source> <destination>", WHITE, 0, *cursor_y);
+        print("Usage: cp [-r|--recursive] <source> <destination>", WHITE, 0, *cursor_y);
         scrl(cursor_y);
-        print("Copies into directories as source filename; never overwrites.", LIGHT_GREY, 0, *cursor_y);
+        print("Copies files and folders to new location, it never overwrites.", LIGHT_GREY, 0, *cursor_y);
 
     } else if (strcmp(args, "mv") == 0) {
         print("Usage: mv <source> <destination>", WHITE, 0, *cursor_y);
@@ -244,9 +244,9 @@ void cmd_help(char *args, int *cursor_y) {
         print("Formats the selected disk to the specified FAT version.", LIGHT_GREY, 0, *cursor_y);
 
     } else if (strcmp(args, "mk-mbr-part") == 0) {
-        print("Usage: mk-mbr-part <drive>:/", WHITE, 0, *cursor_y);
+        print("Usage: mk-mbr-part <drive_number>:/", WHITE, 0, *cursor_y);
         scrl(cursor_y);
-        print("Creates an MBR partition table and formats the partition as FAT32.",
+        print("Makes an MBR partition. Useful for installing MyDOS onto a disk.",
               LIGHT_GREY, 0, *cursor_y);
 
     } else if (strcmp(args, "doom") == 0) {

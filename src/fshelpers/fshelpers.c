@@ -259,22 +259,50 @@ static int parse_two_paths(char *args, char **source, char **destination) {
 }
 
 void cp_file(char *args, int *cursor_y) {
+    int recursive = 0;
+    char *p = args;
+
+    while (*p == ' ') {
+        p++;
+    }
+
+    if (strncmp(p, "-r", 2) == 0 &&
+        (p[2] == '\0' || p[2] == ' ')) {
+        recursive = 1;
+        p += 2;
+    } else if (strncmp(p, "--recursive", 11) == 0 && (p[11] == '\0' || p[11] == ' ')) {
+        recursive = 1;
+        p += 11;
+    }
+
     char *source;
     char *destination;
-    if (!parse_two_paths(args, &source, &destination)) {
-        print("Usage: cp <source> <destination>", RED, 0, *cursor_y);
+    if (!parse_two_paths(p, &source, &destination)) {
+        print("Usage: cp [-r|--recursive] <source> <destination>", RED, 0, *cursor_y);
         return;
     }
 
-    FRESULT result = copy_file(source, destination);
+    FILINFO source_info;
+    FRESULT result = f_stat(source, &source_info);
+    if (result == FR_OK && (source_info.fattrib & AM_DIR) && !recursive) {
+        print("cp: omitting directory; use -r", RED, 0, *cursor_y);
+        return;
+    }
+
+    result = recursive
+        ? copy_path(source, destination)
+        : copy_file(source, destination);
+
     if (result == FR_OK) {
-        print("cp: File copied.", GREEN, 0, *cursor_y);
+        print(recursive ? "cp: Path copied." : "cp: File copied.", WHITE, 0, *cursor_y);
     } else if (result == FR_NO_FILE || result == FR_NO_PATH) {
-        print("cp: Source file not found.", RED, 0, *cursor_y);
+        print("cp: Source path not found.", RED, 0, *cursor_y);
     } else if (result == FR_EXIST) {
         print("cp: Destination already exists.", RED, 0, *cursor_y);
+    } else if (result == FR_DENIED) {
+        print("cp: Cannot copy a directory into itself.", RED, 0, *cursor_y);
     } else {
-        print("cp: Could not copy file.", RED, 0, *cursor_y);
+        print("cp: Could not copy path.", RED, 0, *cursor_y);
     }
 }
 
@@ -484,6 +512,86 @@ static void join_path(char *dest, int dest_size, const char *dir, const char *fi
         dest[i++] = *file++;
     }
     dest[i] = '\0';
+}
+
+FRESULT copy_path(const TCHAR *source_path, const TCHAR *destination_path) {
+    FILINFO source_info;
+    FRESULT result = f_stat(source_path, &source_info);
+    if (result != FR_OK) {
+        return result;
+    }
+
+    if (!(source_info.fattrib & AM_DIR)) {
+        return copy_file(source_path, destination_path);
+    }
+
+    char resolved_destination[280];
+    const TCHAR *effective_destination;
+    result = resolve_destination_path(
+        source_path,
+        destination_path,
+        resolved_destination,
+        sizeof(resolved_destination),
+        &effective_destination
+    );
+    if (result != FR_OK) {
+        return result;
+    }
+
+    int source_length = strlen(source_path);
+    int destination_length = strlen(effective_destination);
+
+    if (destination_length > source_length &&
+        strncmp(effective_destination, source_path, source_length) == 0 &&
+        (source_path[source_length - 1] == '/' ||
+         source_path[source_length - 1] == '\\' ||
+         effective_destination[source_length] == '/' ||
+         effective_destination[source_length] == '\\')) {
+        return FR_DENIED;
+    }
+
+    result = f_mkdir(effective_destination);
+    if (result != FR_OK && result != FR_EXIST) {
+        return result;
+    }
+
+    DIR directory;
+    result = f_opendir(&directory, source_path);
+    if (result != FR_OK) {
+        return result;
+    }
+
+    FILINFO file_info;
+    char source_child[280];
+    char destination_child[280];
+
+    for (;;) {
+        result = f_readdir(&directory, &file_info);
+        if (result != FR_OK || file_info.fname[0] == '\0') {
+            break;
+        }
+
+        if (file_info.fname[0] == '.') {
+            if (file_info.fname[1] == '\0') {
+                continue;
+            }
+            if (file_info.fname[1] == '.' && file_info.fname[2] == '\0') {
+                continue;
+            }
+        }
+
+        join_path(source_child, sizeof(source_child), source_path, file_info.fname);
+        join_path(destination_child, sizeof(destination_child),
+                  effective_destination, file_info.fname);
+
+        result = copy_path(source_child, destination_child);
+        if (result != FR_OK) {
+            break;
+        }
+    }
+
+    f_closedir(&directory);
+    return result;
 }
 
 FRESULT rm_recursive(const TCHAR *path) {

@@ -1,7 +1,7 @@
 # MyDOS
 
 MyDOS is my own 32-bit x86 hobby OS inspired by FreeDOS and the Linux kernel written in C and
-assembly. It boots through Limine using the Multiboot 1 protocol. The hybrid ISO
+assembly. It boots through Limine using the Multiboot 1 protocol. The ISO
 supports both Legacy BIOS and UEFI! It runs great on QEMU, VirtualBox, VMware and 86Box.
 I have not tested it on real hardware yet, so I doubt it boots :/ 
 
@@ -25,6 +25,7 @@ Prebuilt ISO releases are available on the
 - Built-in text editor and calculator
 - Playable id-Software DOOM port (WAD file required)
 - Live installer that copies MyDOS and Limine boot files to a disk (I am very proud of this one!)
+- Networking!
 
 ## Boot options
 
@@ -53,6 +54,9 @@ Shell:
 - `uptime [-p|--pretty] [-s|--seconds]`
 - `fetch`, `shlogo`, `larry`, `beep`
 
+Networking:
+- `dhcp`
+
 Files and disks:
 
 - `ls [path]`, `cd <path>`, `pwd`, `read <filename>`
@@ -64,7 +68,7 @@ Files and disks:
 
 System:
 
-- `rbt` reboots; `shtdwn` halts the CPU (a VM may not power off)
+- `rbt` reboots; `shtdwn` shuts down the VM (Only QEMU for now)
 - `kp` deliberately triggers a kernel panic for testing
 
 ## Flint and user binaries
