@@ -155,9 +155,9 @@ int shell_show_help(char *args, int cursor_y) {
               LIGHT_GREY, 0, cursor_y);
 
     } else if (strcmp(args, "cp") == 0) {
-        print("Usage: cp <source> <destination>", WHITE, 0, cursor_y);
+        print("Usage: cp [-r|--recursive] <source> <destination>", WHITE, 0, cursor_y);
         scrl(&cursor_y);
-        print("Copies into directories as source filename; never overwrites.", LIGHT_GREY, 0, cursor_y);
+        print("Copies files and folders to new location, it never overwrites.", LIGHT_GREY, 0, cursor_y);
 
     } else if (strcmp(args, "mv") == 0) {
         print("Usage: mv <source> <destination>", WHITE, 0, cursor_y);
