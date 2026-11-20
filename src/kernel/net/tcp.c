@@ -131,7 +131,7 @@ static uint16_t tcp_build_frame(tcp_socket_t *socket, uint8_t flags,
     ip->checksum = 0;
     memcpy(ip->source, &socket->local_ip, 4);
     memcpy(ip->destination, &socket->server_ip, 4);
-    ip->checksum = net_checksum16((const uint8_t *)ip, 20);
+    ip->checksum = tcp_be16(net_checksum16((const uint8_t *)ip, 20));
 
     tcp->source_port = tcp_be16(socket->local_port);
     tcp->destination_port = tcp_be16(socket->server_port);
@@ -154,7 +154,7 @@ static uint16_t tcp_build_frame(tcp_socket_t *socket, uint8_t flags,
 
 static int tcp_parse_frame(const uint8_t *frame, int length,
                            const tcp_socket_t *socket, tcp_incoming_t *incoming) {
-    if (length < 54 || tcp_be16(tcp_read16(frame + 12)) != 0x0800u) {
+    if (length < 54 || tcp_read16(frame + 12) != 0x0800u) {
         return 0;
     }
     tcp_ipv4_t *ip = (tcp_ipv4_t *)(frame + 14);
@@ -190,8 +190,8 @@ static int tcp_parse_frame(const uint8_t *frame, int length,
     }
 
     incoming->flags = tcp->flags;
-    incoming->sequence = tcp_be32(tcp_read32((const uint8_t *)&tcp->sequence));
-    incoming->acknowledgment = tcp_be32(tcp_read32((const uint8_t *)&tcp->acknowledgment));
+    incoming->sequence = tcp_read32((const uint8_t *)&tcp->sequence);
+    incoming->acknowledgment = tcp_read32((const uint8_t *)&tcp->acknowledgment);
     incoming->payload = (uint8_t *)(frame + 34 + tcp_header_length);
     incoming->payload_length = segment_length - tcp_header_length;
     return 1;

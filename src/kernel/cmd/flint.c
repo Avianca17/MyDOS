@@ -2,11 +2,12 @@
 #include <cmd/cmd.h>
 #include <ff.h>
 #include <net/net.h>
+#include <pkg/pkg.h>
 
 #define FLINT_INDEX_URL "http://distfiles.gentoo.org/releases/x86/binpackages/23.0/i686/Packages"
 #define FLINT_PKG_BASE "http://distfiles.gentoo.org/releases/x86/binpackages/23.0/i686/"
-#define FLINT_INDEX_PATH "0:/FLINT/PACKAGES.TXT"
-#define FLINT_PKG_DIR "0:/FLINT/PACKAGES"
+#define FLINT_INDEX_PATH "FLINT/PACKAGES.TXT"
+#define FLINT_PKG_DIR "FLINT/PACKAGES"
 #define FLINT_LINE_MAX 256
 
 static void flint_copy(char *out, const char *text) {
@@ -80,7 +81,7 @@ static void flint_line(const char *text, unsigned char color, int *cursor_y) {
 }
 
 static void flint_ensure_dirs(void) {
-    if (f_mkdir("0:/FLINT") != FR_OK && f_mkdir("0:/FLINT") != FR_EXIST) {
+    if (f_mkdir("FLINT") != FR_OK && f_mkdir("FLINT") != FR_EXIST) {
         return;
     }
     f_mkdir(FLINT_PKG_DIR);
@@ -120,17 +121,17 @@ static void flint_help(int *cursor_y) {
     flint_line("  sync                 download Gentoo x86 package index", LIGHT_GREY, cursor_y);
     flint_line("  search <term>        search cached package names", LIGHT_GREY, cursor_y);
     flint_line("  info <atom>          show package metadata", LIGHT_GREY, cursor_y);
-    flint_line("  install <atom>       download a .gpkg.tar package", LIGHT_GREY, cursor_y);
+    flint_line("  install <atom>       download and install a .gpkg.tar package", LIGHT_GREY, cursor_y);
     flint_line("  fetch <url> <dest>   download any plain HTTP URL", LIGHT_GREY, cursor_y);
     flint_line("  source               show package source URL", LIGHT_GREY, cursor_y);
-    flint_line("Packages are downloaded only; MyDOS cannot unpack them yet.", YELLOW, cursor_y);
+    flint_line("Packages are unpacked into BIN, USR, and ETC.", YELLOW, cursor_y);
 }
 
 static void flint_sync(int *cursor_y) {
     flint_ensure_dirs();
     flint_line("flint: syncing Gentoo x86 package index...", WHITE, cursor_y);
     if (net_http_get_file(FLINT_INDEX_URL, FLINT_INDEX_PATH)) {
-        flint_line("flint: index saved to 0:/FLINT/PACKAGES.TXT", GREEN, cursor_y);
+        flint_line("flint: index saved to FLINT/PACKAGES.TXT", GREEN, cursor_y);
     } else {
         flint_line("flint: sync failed", RED, cursor_y);
     }
@@ -276,10 +277,22 @@ static void flint_install(const char *query, int *cursor_y) {
     flint_ensure_dirs();
     flint_line("flint: downloading " , WHITE, cursor_y);
     print(package_path, LIGHT_GREY, 18, *cursor_y - 1);
-    if (net_http_get_file(url, destination)) {
-        flint_line("flint: package saved under 0:/FLINT/PACKAGES", GREEN, cursor_y);
-    } else {
+    if (!net_http_get_file(url, destination)) {
         flint_line("flint: package download failed", RED, cursor_y);
+        return;
+    }
+
+    char executable[64];
+    int installed = pkg_install_gpkg(destination, executable, sizeof(executable));
+    if (installed <= 0) {
+        flint_line("flint: could not install package", RED, cursor_y);
+        return;
+    }
+
+    flint_line("flint: installed files from downloaded package", GREEN, cursor_y);
+    if (executable[0] != '\0') {
+        flint_line("flint: run ", WHITE, cursor_y);
+        print(executable, LIGHT_GREY, 11, *cursor_y - 1);
     }
 }
 

@@ -233,7 +233,7 @@ int net_dns_resolve(const char *hostname, uint32_t *address) {
     ip->checksum = 0;
     memcpy(ip->source, &own, 4);
     memcpy(ip->destination, &dns_address, 4);
-    ip->checksum = net_checksum16((const uint8_t *)ip, 20);
+    ip->checksum = dns_be16(net_checksum16((const uint8_t *)ip, 20));
 
     udp->source_port = dns_be16(DNS_LOCAL_PORT);
     udp->destination_port = dns_be16(DNS_PORT);
